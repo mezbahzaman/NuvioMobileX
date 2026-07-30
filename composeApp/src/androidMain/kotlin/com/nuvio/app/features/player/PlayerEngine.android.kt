@@ -151,8 +151,15 @@ actual fun PlatformPlayerSurface(
             onInitialPositionHandled = onInitialPositionHandled,
             onControllerReady = onControllerReady,
             onSnapshot = onSnapshot,
-            onError = { message ->
-                if (message != null && playerSettings.androidPlaybackEngine == AndroidPlaybackEngine.Auto) {
+            onError = { message, linkAuthFailure ->
+                // A 401/403/410 is the LINK being refused, not a decoding problem — libmpv would be
+                // handed the same dead URL and fail identically. Worse, swallowing it as `null` here
+                // hid it from the screen's expired-link recovery (which only runs for a non-null
+                // message), so an IPTV token/stream-id failure could never self-heal on Android.
+                // Pass those straight through; keep the engine failover for real playback failures.
+                if (message != null && !linkAuthFailure &&
+                    playerSettings.androidPlaybackEngine == AndroidPlaybackEngine.Auto
+                ) {
                     Log.w(TAG, "ExoPlayer failed; falling back to libmpv: $message")
                     initialPositionRequestKey?.let { key ->
                         onInitialPositionHandled(key, false)
@@ -221,7 +228,8 @@ private fun ExoPlayerSurface(
     onInitialPositionHandled: (key: String, handled: Boolean) -> Unit,
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
-    onError: (String?) -> Unit,
+    /** [linkAuthFailure] = the server refused the URL itself (401/403/410), not a decode problem. */
+    onError: (message: String?, linkAuthFailure: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -503,10 +511,13 @@ private fun ExoPlayerSurface(
                 )
                 fallbackStartPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
                 decoderPriorityOverride = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-                latestOnError.value(null)
+                latestOnError.value(null, false)
                 return
             }
-            latestOnError.value(error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) })
+            latestOnError.value(
+                error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) },
+                error.isLinkAuthFailure(),
+            )
         }
 
         val listener = object : Player.Listener {
@@ -552,7 +563,7 @@ private fun ExoPlayerSurface(
                                     }
                                 }
                                 .build()
-                            latestOnError.value(null)
+                            latestOnError.value(null, false)
                             return@launch
                         }
                         reportPlayerError(error)
@@ -582,7 +593,7 @@ private fun ExoPlayerSurface(
                 )
                 if (playbackState == Player.STATE_READY) {
                     fallbackStartPositionMs = null
-                    latestOnError.value(null)
+                    latestOnError.value(null, false)
                     exoPlayer.logCurrentTracks("STATE_READY")
                 }
                 syncPlayerViewKeepScreenOn()
@@ -1744,6 +1755,24 @@ private fun ExoPlayer.restoreTrackSelection(selection: TrackSelectionSnapshot): 
     }
 
     return selectTrackByIndex(selection.trackType, selection.index)
+}
+
+/**
+ * The server refused the URL itself rather than the content being unplayable: 401/403 (token
+ * expired, session taken over by another device, stream no longer authorised) or 410 (gone).
+ *
+ * These must NOT trigger the libmpv failover — libmpv would be handed the same dead link — and
+ * must reach the screen so the expired-link recovery can mint a fresh one.
+ */
+private fun PlaybackException.isLinkAuthFailure(): Boolean {
+    var current: Throwable? = cause
+    while (current != null) {
+        if (current is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+            return current.responseCode == 401 || current.responseCode == 403 || current.responseCode == 410
+        }
+        current = current.cause
+    }
+    return false
 }
 
 private fun PlaybackException.isDecoderFailure(): Boolean =
