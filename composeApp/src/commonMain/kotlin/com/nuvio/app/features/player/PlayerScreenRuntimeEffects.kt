@@ -15,6 +15,7 @@ import com.nuvio.app.features.streams.BingeGroupCacheRepository
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.hasLikelyExpiringPlaybackCredentials
+import com.nuvio.app.features.streams.runCatchingUnlessCancelled
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -563,7 +564,13 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
     // IPTV (xtream/stalker) sources always qualify: a Stalker create_link token is often embedded
     // in the URL PATH (nginx secure_link style), which the query-param heuristic can't see — and a
     // 401 on those means the single-use/short-TTL token died, exactly what a refresh fixes.
-    val isIptvSource = com.nuvio.app.features.iptv.XtreamItemRegistry.isXtreamId(activeVideoId)
+    // Two iptv shapes: direct-lane content (xtream videoId) and the TMDB-matched lane, recognised
+    // by its provider group id ("xtream-match:<accountId>").
+    val matchedIptvAccountId = activeProviderAddonId
+        ?.takeIf { it.startsWith(com.nuvio.app.features.iptv.match.XtreamStreamSource.GROUP_ID_PREFIX) }
+        ?.removePrefix(com.nuvio.app.features.iptv.match.XtreamStreamSource.GROUP_ID_PREFIX)
+    val isIptvSource = matchedIptvAccountId != null ||
+        com.nuvio.app.features.iptv.XtreamItemRegistry.isXtreamId(activeVideoId)
     if (!isIptvSource && !failedUrl.hasLikelyExpiringPlaybackCredentials()) return false
     if (credentialRefreshJob?.isActive == true) return true
     if (credentialRefreshAttemptedSourceUrl == failedUrl) return false
@@ -585,35 +592,60 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
     controlsVisible = !playerControlsLocked
 
     credentialRefreshJob = scope.launch {
-        PlayerStreamsRepository.loadSources(
-            type = type,
-            videoId = currentVideoId,
-            season = season,
-            episode = episode,
-            forceRefresh = true,
-        )
-
         var refreshedStream: StreamItem? = null
-        var pollCount = 0
-        while (pollCount < CREDENTIAL_REFRESH_POLL_COUNT && refreshedStream == null) {
-            val state = PlayerStreamsRepository.sourceState.value
-            refreshedStream = findCredentialRefreshCandidate(
-                streams = state.groups.flatMap { it.streams },
-                failedUrl = failedUrl,
-                expectedProviderAddonId = expectedProviderAddonId,
-                expectedProviderName = expectedProviderName,
-                expectedStreamTitle = expectedStreamTitle,
-                expectedBingeGroup = expectedBingeGroup,
-            )
-            if (
-                refreshedStream != null ||
-                state.emptyStateReason != null ||
-                (!state.isAnyLoading && state.groups.isNotEmpty())
-            ) {
-                break
+        if (matchedIptvAccountId != null) {
+            // TMDB-matched iptv stream: PlayerStreamsRepository has no xtream-match lane to poll,
+            // so re-run the owning account's TMDB->stream match directly — one targeted resolve
+            // that mints a fresh Stalker create_link (Xtream URLs come back identical and are
+            // rejected by the candidate's url != failedUrl check, which is correct: a 401 on a
+            // stable URL is an account problem, not a token problem).
+            com.nuvio.app.features.iptv.XtreamRepository.ensureLoaded()
+            val account = com.nuvio.app.features.iptv.XtreamRepository.uiState.value.accounts
+                .firstOrNull { it.id == matchedIptvAccountId }
+            if (account != null) {
+                val streams = runCatchingUnlessCancelled {
+                    com.nuvio.app.features.iptv.match.XtreamStreamSource
+                        .streamsFor(account, type, currentVideoId, season, episode)
+                }.getOrDefault(emptyList())
+                refreshedStream = findCredentialRefreshCandidate(
+                    streams = streams,
+                    failedUrl = failedUrl,
+                    expectedProviderAddonId = expectedProviderAddonId,
+                    expectedProviderName = expectedProviderName,
+                    expectedStreamTitle = expectedStreamTitle,
+                    expectedBingeGroup = expectedBingeGroup,
+                )
             }
-            delay(CREDENTIAL_REFRESH_POLL_INTERVAL_MS)
-            pollCount++
+        } else {
+            PlayerStreamsRepository.loadSources(
+                type = type,
+                videoId = currentVideoId,
+                season = season,
+                episode = episode,
+                forceRefresh = true,
+            )
+
+            var pollCount = 0
+            while (pollCount < CREDENTIAL_REFRESH_POLL_COUNT && refreshedStream == null) {
+                val state = PlayerStreamsRepository.sourceState.value
+                refreshedStream = findCredentialRefreshCandidate(
+                    streams = state.groups.flatMap { it.streams },
+                    failedUrl = failedUrl,
+                    expectedProviderAddonId = expectedProviderAddonId,
+                    expectedProviderName = expectedProviderName,
+                    expectedStreamTitle = expectedStreamTitle,
+                    expectedBingeGroup = expectedBingeGroup,
+                )
+                if (
+                    refreshedStream != null ||
+                    state.emptyStateReason != null ||
+                    (!state.isAnyLoading && state.groups.isNotEmpty())
+                ) {
+                    break
+                }
+                delay(CREDENTIAL_REFRESH_POLL_INTERVAL_MS)
+                pollCount++
+            }
         }
 
         val stream = refreshedStream
