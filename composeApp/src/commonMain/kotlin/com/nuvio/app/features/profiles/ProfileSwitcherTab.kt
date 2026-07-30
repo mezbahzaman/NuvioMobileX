@@ -89,6 +89,7 @@ fun ProfileSwitcherTab(
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
     triggerContent: (@Composable (selected: Boolean) -> Unit)? = null,
+    avatarSize: Int = 28,
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -240,7 +241,7 @@ fun ProfileSwitcherTab(
                 profile = activeProfile,
                 avatars = avatars,
                 selected = selected,
-                size = 28,
+                size = avatarSize,
             )
         }
 

@@ -557,6 +557,10 @@ final class AppNavigationCoordinator: ObservableObject {
     @Published private(set) var localizedSwitchProfileTitle = ""
     @Published private(set) var localizedAddProfileTitle = ""
     @Published var isProfileSwitcherPresented = false
+    /// Profile/Settings has no entry in `tabBarCases`, so selecting it cannot go through
+    /// `selectedTab` — it presents a full-screen cover instead.
+    @Published var isSettingsPresented = false
+    private var tabBeforeSettings: NuvioAppTab = .home
 
     let homeCoordinator = TabNavigationCoordinator()
     let searchCoordinator = TabNavigationCoordinator()
@@ -603,9 +607,23 @@ final class AppNavigationCoordinator: ObservableObject {
 
     func activateTab(named tabName: String) {
         guard let tab = NuvioAppTab.from(kotlinName: tabName) else { return }
+        if tab == .settings {
+            presentSettings()
+            return
+        }
         if tab == .home || isAppReady {
             selectedTab = tab
         }
+    }
+
+    func presentSettings() {
+        guard isAppReady, !isSettingsPresented else { return }
+        tabBeforeSettings = selectedTab
+        isSettingsPresented = true
+    }
+
+    func settingsDismissed() {
+        selectedTab = tabBeforeSettings
     }
 
     func title(for tab: NuvioAppTab) -> String {
@@ -1195,8 +1213,6 @@ private struct NativeProfileSwitcherView: View {
 struct NativeNavContentView: View {
     @StateObject private var appCoordinator = AppNavigationCoordinator()
     @StateObject private var iconStore = NativeTabIconStore()
-    @State private var isSettingsPresented = false
-    @State private var tabBeforeSettings: NuvioAppTab = .home
 
     private var usesNativeTabBar: Bool {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
@@ -1306,12 +1322,12 @@ struct NativeNavContentView: View {
         }
     }
 
-    // Profile/Settings left the bottom bar (iOS fits only 5 tabs), so it lives as a top-right avatar.
-    // Tap opens Settings; long-press opens the quick profile switcher.
+    // Profile/Settings left the bottom bar (iPhone fits only 5 tabs), so it lives as a top-right
+    // avatar. Tap opens Settings; long-press opens the quick profile switcher. iPad has room for a
+    // Profile entry in its floating bar, so this corner avatar is omitted there (see `body`).
     private var profileAvatarButton: some View {
         Button {
-            tabBeforeSettings = appCoordinator.selectedTab
-            isSettingsPresented = true
+            appCoordinator.presentSettings()
         } label: {
             Image(uiImage: iconStore.image(for: .settings, selected: false))
                 .frame(width: 30, height: 30)
@@ -1336,7 +1352,7 @@ struct NativeNavContentView: View {
             .ignoresSafeArea()
 
             Button {
-                isSettingsPresented = false
+                appCoordinator.isSettingsPresented = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.body.weight(.semibold))
@@ -1353,14 +1369,17 @@ struct NativeNavContentView: View {
         ZStack(alignment: .topTrailing) {
             tabsContainer
 
-            if appCoordinator.isAppReady && appCoordinator.activeTabIsAtRoot {
+            // Only the native 5-tab bar lacks room for Profile. Every other layout (iPad's floating
+            // top bar, the Compose bottom bars) carries its own Profile entry, so showing the corner
+            // avatar there would duplicate it.
+            if appCoordinator.isAppReady && appCoordinator.activeTabIsAtRoot && usesNativeTabBar {
                 profileAvatarButton
                     .padding(.trailing, 16)
                     .padding(.top, 4)
             }
         }
-        .fullScreenCover(isPresented: $isSettingsPresented, onDismiss: {
-            appCoordinator.selectedTab = tabBeforeSettings
+        .fullScreenCover(isPresented: $appCoordinator.isSettingsPresented, onDismiss: {
+            appCoordinator.settingsDismissed()
         }) {
             settingsCover
         }
