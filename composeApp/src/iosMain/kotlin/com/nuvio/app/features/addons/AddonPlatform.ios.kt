@@ -98,7 +98,7 @@ actual suspend fun httpGetText(url: String, dnsProvider: String?): String =
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
-                throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+                throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
             }
             payload
         }
@@ -116,7 +116,7 @@ actual suspend fun httpPostJson(url: String, body: String): String =
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
-                throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+                throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
             }
             payload
         }
@@ -138,7 +138,7 @@ actual suspend fun httpGetTextWithHeaders(
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
-                throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+                throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
             }
             payload
         }
@@ -163,7 +163,7 @@ actual suspend fun httpPostJsonWithHeaders(
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
-                throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+                throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
             }
             payload
         }
