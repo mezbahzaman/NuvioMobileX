@@ -107,8 +107,21 @@ fun LiveTvScreen(
         val resolved = LiveTvData.resolveSource(currentContentId, currentTitle, currentLogo)
         if (resolved == null) resolveError = true else source = resolved
     }
-    val onRetry: () -> Unit = {
-        if (playbackError != null && source != null) controller?.retry() else retryTick++
+    // Always re-resolve on retry: live links carry expiring tokens (Stalker create_link is
+    // single-use/short-TTL), so controller.retry() would just replay the dead URL.
+    val onRetry: () -> Unit = { retryTick++ }
+
+    // One AUTOMATIC fresh re-resolve per resolved URL: a mid-watch 401 (token expired, or the
+    // portal session was rotated by another device on the same MAC) recovers invisibly; a second
+    // failure on the freshly minted link means the channel/account is the problem — surface the
+    // error pill instead of hammering the portal.
+    var autoRefreshBurntUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(playbackError) {
+        val failedUrl = source?.url ?: return@LaunchedEffect
+        if (playbackError != null && autoRefreshBurntUrl != failedUrl) {
+            autoRefreshBurntUrl = failedUrl
+            retryTick++
+        }
     }
 
     // Guide channel column (once, from the launch channel's account).

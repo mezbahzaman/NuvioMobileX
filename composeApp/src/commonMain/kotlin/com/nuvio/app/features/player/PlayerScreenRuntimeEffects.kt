@@ -547,7 +547,11 @@ internal fun PlayerScreenRuntime.removeFailedStreamFromCache() {
 
 internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message: String?): Boolean {
     val failedUrl = activeSourceUrl
-    if (!failedUrl.hasLikelyExpiringPlaybackCredentials()) return false
+    // IPTV (xtream/stalker) sources always qualify: a Stalker create_link token is often embedded
+    // in the URL PATH (nginx secure_link style), which the query-param heuristic can't see — and a
+    // 401 on those means the single-use/short-TTL token died, exactly what a refresh fixes.
+    val isIptvSource = com.nuvio.app.features.iptv.XtreamItemRegistry.isXtreamId(activeVideoId)
+    if (!isIptvSource && !failedUrl.hasLikelyExpiringPlaybackCredentials()) return false
     if (credentialRefreshJob?.isActive == true) return true
     if (credentialRefreshAttemptedSourceUrl == failedUrl) return false
 
