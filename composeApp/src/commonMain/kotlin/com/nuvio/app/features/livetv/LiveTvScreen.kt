@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -170,6 +171,20 @@ fun LiveTvScreen(
         nowNextOf(programmes[currentContentId], nowMs)
     }
 
+    // Single MPV surface instance shared between the docked and fullscreen layouts. movableContentOf
+    // MOVES the same node (and its underlying player engine) across the rotation-driven layout swap
+    // instead of tearing it down and rebuilding it — so rotating no longer reloads/rebuffers.
+    val playerSlot: @Composable () -> Unit = remember {
+        movableContentOf {
+            LivePlayerSurface(
+                source = source,
+                onControllerReady = { controller = it },
+                onSnapshot = { snapshot = it },
+                onError = { playbackError = it },
+            )
+        }
+    }
+
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(colors.surface),
     ) {
@@ -182,14 +197,11 @@ fun LiveTvScreen(
             EnterImmersivePlayerMode(keepScreenAwake = snapshot.isPlaying || snapshot.isLoading)
             FullscreenLiveLayout(
                 title = currentTitle,
-                source = source,
+                playerSlot = playerSlot,
                 resolveError = resolveError,
                 playbackError = playbackError,
                 snapshot = snapshot,
                 colors = colors,
-                onControllerReady = { controller = it },
-                onSnapshot = { snapshot = it },
-                onError = { playbackError = it },
                 onPlayPause = { if (snapshot.isPlaying) controller?.pause() else controller?.play() },
                 onRetry = onRetry,
                 onExitFullscreen = { manualOrientation = false },
@@ -200,7 +212,7 @@ fun LiveTvScreen(
                 title = currentTitle,
                 logo = currentLogo,
                 nowNext = nowNext,
-                source = source,
+                playerSlot = playerSlot,
                 resolveError = resolveError,
                 playbackError = playbackError,
                 snapshot = snapshot,
@@ -211,9 +223,6 @@ fun LiveTvScreen(
                 onNeedProgrammes = onNeedProgrammes,
                 onSelectChannel = ::switchTo,
                 colors = colors,
-                onControllerReady = { controller = it },
-                onSnapshot = { snapshot = it },
-                onError = { playbackError = it },
                 onPlayPause = { if (snapshot.isPlaying) controller?.pause() else controller?.play() },
                 onRetry = onRetry,
                 onEnterFullscreen = { manualOrientation = true },
@@ -245,7 +254,7 @@ private fun DockedLiveLayout(
     title: String,
     logo: String?,
     nowNext: NowNext,
-    source: LiveChannelSource?,
+    playerSlot: @Composable () -> Unit,
     resolveError: Boolean,
     playbackError: String?,
     snapshot: PlayerPlaybackSnapshot,
@@ -256,9 +265,6 @@ private fun DockedLiveLayout(
     onNeedProgrammes: (String) -> Unit,
     onSelectChannel: (LiveGuideChannel) -> Unit,
     colors: com.nuvio.app.core.ui.NuvioColorTokens,
-    onControllerReady: (PlayerEngineController) -> Unit,
-    onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
-    onError: (String?) -> Unit,
     onPlayPause: () -> Unit,
     onRetry: () -> Unit,
     onEnterFullscreen: () -> Unit,
@@ -273,12 +279,7 @@ private fun DockedLiveLayout(
                 .aspectRatio(16f / 9f)
                 .background(Color.Black),
         ) {
-            LivePlayerSurface(
-                source = source,
-                onControllerReady = onControllerReady,
-                onSnapshot = onSnapshot,
-                onError = onError,
-            )
+            playerSlot()
             DockedPlayerOverlay(
                 title = title,
                 snapshot = snapshot,
@@ -428,14 +429,11 @@ private fun DockedPlayerOverlay(
 @Composable
 private fun FullscreenLiveLayout(
     title: String,
-    source: LiveChannelSource?,
+    playerSlot: @Composable () -> Unit,
     resolveError: Boolean,
     playbackError: String?,
     snapshot: PlayerPlaybackSnapshot,
     colors: com.nuvio.app.core.ui.NuvioColorTokens,
-    onControllerReady: (PlayerEngineController) -> Unit,
-    onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
-    onError: (String?) -> Unit,
     onPlayPause: () -> Unit,
     onRetry: () -> Unit,
     onExitFullscreen: () -> Unit,
@@ -454,12 +452,7 @@ private fun FullscreenLiveLayout(
             .background(Color.Black)
             .clickable { controlsVisible = !controlsVisible },
     ) {
-        LivePlayerSurface(
-            source = source,
-            onControllerReady = onControllerReady,
-            onSnapshot = onSnapshot,
-            onError = onError,
-        )
+        playerSlot()
         when {
             resolveError || playbackError != null ->
                 Box(Modifier.fillMaxSize(), Alignment.Center) { ErrorPill(colors.danger, onRetry) }
