@@ -74,6 +74,8 @@ import com.nuvio.app.features.details.MetaEpisodeCardStyle
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.SeasonViewMode
 import com.nuvio.app.features.details.SeasonViewModeStorage
+import com.nuvio.app.features.details.bucketContaining
+import com.nuvio.app.features.details.episodeBuckets
 import com.nuvio.app.features.details.formatRuntimeFromMinutes
 import com.nuvio.app.features.details.metaVideoSeasonEpisodeComparator
 import com.nuvio.app.features.details.normalizeSeasonNumber
@@ -287,7 +289,46 @@ fun DetailSeriesContent(
                     DetailSectionTitle(
                         title = sectionTitle,
                     )
-                    val seasonEpisodes = groupedEpisodes.getValue(seasonForContent)
+                    val allSeasonEpisodes = groupedEpisodes.getValue(seasonForContent)
+                    val buckets = remember(allSeasonEpisodes) { episodeBuckets(allSeasonEpisodes) }
+                    // Follow the resume point into its own range so a half-watched soap opens where
+                    // the viewer left off rather than back at episode one.
+                    val preferredIndex = remember(allSeasonEpisodes, preferredEpisodeNumber) {
+                        preferredEpisodeNumber?.let { wanted ->
+                            allSeasonEpisodes.indexOfFirst { it.episode == wanted }
+                        }?.takeIf { it >= 0 } ?: 0
+                    }
+                    var selectedBucketLabel by remember(allSeasonEpisodes) {
+                        mutableStateOf(buckets.bucketContaining(preferredIndex)?.label)
+                    }
+                    var showJumpSheet by remember { mutableStateOf(false) }
+                    val selectedBucket = buckets.firstOrNull { it.label == selectedBucketLabel }
+                        ?: buckets.firstOrNull()
+                    val seasonEpisodes = if (selectedBucket == null) {
+                        allSeasonEpisodes
+                    } else {
+                        allSeasonEpisodes.subList(selectedBucket.fromIndex, selectedBucket.untilIndex)
+                    }
+
+                    if (buckets.isNotEmpty()) {
+                        EpisodeRangePicker(
+                            buckets = buckets,
+                            selected = selectedBucket,
+                            onSelect = { selectedBucketLabel = it.label },
+                            onJumpToEpisode = { showJumpSheet = true },
+                        )
+                    }
+
+                    if (showJumpSheet) {
+                        JumpToEpisodeSheet(
+                            episodes = allSeasonEpisodes,
+                            onDismiss = { showJumpSheet = false },
+                            onJump = { index ->
+                                selectedBucketLabel = buckets.bucketContaining(index)?.label
+                            },
+                        )
+                    }
+
                     if (episodeCardStyle == MetaEpisodeCardStyle.Horizontal) {
                         EpisodeHorizontalRow(
                             episodes = seasonEpisodes,
