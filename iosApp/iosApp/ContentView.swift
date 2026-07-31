@@ -659,6 +659,10 @@ final class AppNavigationCoordinator: ObservableObject {
         isAppReady = ready
         if !ready {
             isProfileSwitcherPresented = false
+            // The gate (login / profile picker) renders behind this cover, so leaving the main
+            // app while Settings is open would strand the user on a screen whose Sign In and
+            // Sign Out buttons appear to do nothing.
+            isSettingsPresented = false
             selectedTab = .home
             allCoordinators.forEach { $0.popToRoot() }
         }
