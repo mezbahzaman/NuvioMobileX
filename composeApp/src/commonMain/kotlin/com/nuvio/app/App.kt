@@ -851,6 +851,9 @@ private fun MainAppContent(
         var selectedContinueWatchingForActions by remember { mutableStateOf<ContinueWatchingItem?>(null) }
         var selectedContinueWatchingZoomAnchor by remember { mutableStateOf<PosterZoomAnchor?>(null) }
         var requestedSettingsPageName by rememberSaveable { mutableStateOf<String?>(null) }
+        // A shortcut from another tab lands in a different Compose instance on iOS, so the
+        // requested page arrives through the shared store rather than the local state above.
+        val crossInstanceSettingsPage by SettingsPageRequest.pageName.collectAsStateWithLifecycle()
         var showLibraryListPicker by remember { mutableStateOf(false) }
         var pickerItem by remember { mutableStateOf<LibraryItem?>(null) }
         var pickerTitle by remember { mutableStateOf("") }
@@ -2067,8 +2070,10 @@ private fun MainAppContent(
                                             openPosterActions(PosterActionTarget(preview = meta))
                                         },
                                         onIptvAddProvider = {
-                                            requestedSettingsPageName = "Iptv"
-                                            selectedTab = AppScreenTab.Settings
+                                            // activateTab, not selectedTab: iOS has no Settings tab
+                                            // to select, so only activateTab reaches its cover.
+                                            SettingsPageRequest.request("Iptv")
+                                            activateTab(AppScreenTab.Settings)
                                         },
                                         onOpenSportsTab = { selectedTab = AppScreenTab.Sports },
                                         onPlayLiveChannel = { contentId ->
@@ -2152,7 +2157,7 @@ private fun MainAppContent(
                                                     )
                                                 )
                                             } else {
-                                                requestedSettingsPageName = "Debrid"
+                                                SettingsPageRequest.request("Debrid")
                                                 activateTab(AppScreenTab.Settings)
                                             }
                                         },
@@ -2218,9 +2223,11 @@ private fun MainAppContent(
                                                 )
                                             )
                                         },
-                                        requestedSettingsPageName = requestedSettingsPageName,
+                                        requestedSettingsPageName = requestedSettingsPageName
+                                            ?: crossInstanceSettingsPage,
                                         onRequestedSettingsPageConsumed = {
                                             requestedSettingsPageName = null
+                                            SettingsPageRequest.consume()
                                         },
                                         onInitialHomeContentRendered = { initialHomeReady = true },
                                     )

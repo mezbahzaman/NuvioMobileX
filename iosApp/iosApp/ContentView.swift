@@ -624,6 +624,9 @@ final class AppNavigationCoordinator: ObservableObject {
 
     func settingsDismissed() {
         selectedTab = tabBeforeSettings
+        // Closing Settings should end at its root next time, not back inside whichever page
+        // was open — the cover keeps its stack otherwise.
+        settingsCoordinator.popToRoot()
     }
 
     func title(for tab: NuvioAppTab) -> String {
@@ -683,6 +686,14 @@ final class AppNavigationCoordinator: ObservableObject {
         let targetTab = NuvioAppTab.from(kotlinName: route.preferredTabName)
             ?? tab(for: origin)
             ?? selectedTab
+        // Settings has no tab to select, so its destinations push onto the cover's stack —
+        // assigning `.settings` here would leave the TabView on an unselectable tag and fall
+        // back to Home, stranding the route on an invisible stack.
+        if targetTab == .settings {
+            presentSettings()
+            settingsCoordinator.push(route, launchSingleTop: launchSingleTop)
+            return
+        }
         let target = coordinator(for: targetTab)
         selectedTab = targetTab
         target.push(route, launchSingleTop: launchSingleTop)
@@ -693,7 +704,7 @@ final class AppNavigationCoordinator: ObservableObject {
             AppKt.disposeRoute(route: route)
             return
         }
-        if let targetTab = tab(for: target) {
+        if let targetTab = tab(for: target), targetTab != .settings {
             selectedTab = targetTab
         }
         target.replace(route)
@@ -818,7 +829,10 @@ struct TabContentView: View {
             .navigationTitle(appCoordinator.title(for: tab))
             .navigationBarHidden(true)
             .navigationDestination(for: RouteWrapper.self) { wrapper in
-                if appCoordinator.selectedTab == tab {
+                // Settings is a cover rather than a tab, so `selectedTab` stays on whichever tab
+                // is behind it — gating on it alone would blank every pushed Settings page.
+                if appCoordinator.selectedTab == tab
+                    || (tab == .settings && appCoordinator.isSettingsPresented) {
                     DetailDestinationView(
                         wrapper: wrapper,
                         coordinator: coordinator,
