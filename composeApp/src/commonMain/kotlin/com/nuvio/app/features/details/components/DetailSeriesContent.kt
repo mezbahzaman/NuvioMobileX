@@ -302,6 +302,9 @@ fun DetailSeriesContent(
                         mutableStateOf(buckets.bucketContaining(preferredIndex)?.label)
                     }
                     var showJumpSheet by remember { mutableStateOf(false) }
+                    // Landing on the range holding episode 847 is not the same as landing on 847,
+                    // so the jump also drives the row's scroll target.
+                    var jumpedToEpisode by remember(allSeasonEpisodes) { mutableStateOf<Int?>(null) }
                     val selectedBucket = buckets.firstOrNull { it.label == selectedBucketLabel }
                         ?: buckets.firstOrNull()
                     val seasonEpisodes = if (selectedBucket == null) {
@@ -314,7 +317,10 @@ fun DetailSeriesContent(
                         EpisodeRangePicker(
                             buckets = buckets,
                             selected = selectedBucket,
-                            onSelect = { selectedBucketLabel = it.label },
+                            onSelect = {
+                                selectedBucketLabel = it.label
+                                jumpedToEpisode = null
+                            },
                             onJumpToEpisode = { showJumpSheet = true },
                         )
                     }
@@ -325,6 +331,7 @@ fun DetailSeriesContent(
                             onDismiss = { showJumpSheet = false },
                             onJump = { index ->
                                 selectedBucketLabel = buckets.bucketContaining(index)?.label
+                                jumpedToEpisode = allSeasonEpisodes.getOrNull(index)?.episode
                             },
                         )
                     }
@@ -341,7 +348,7 @@ fun DetailSeriesContent(
                             progressByVideoId = progressByVideoId,
                             episodeRatings = episodeRatings,
                             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
-                            preferredEpisodeNumber = preferredEpisodeNumber,
+                            preferredEpisodeNumber = jumpedToEpisode ?: preferredEpisodeNumber,
                             onEpisodeClick = onEpisodeClick,
                             onEpisodeLongPress = onEpisodeLongPress,
                         )
