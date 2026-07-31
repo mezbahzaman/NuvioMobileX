@@ -1369,17 +1369,21 @@ struct NativeNavContentView: View {
             )
             .ignoresSafeArea()
 
-            Button {
-                appCoordinator.isSettingsPresented = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(10)
-                    .background(.black.opacity(0.45), in: Circle())
+            // Only at the root: a pushed Settings page draws its own back button in this exact
+            // spot, and two stacked controls doing different things is worse than one.
+            if appCoordinator.settingsCoordinator.path.isEmpty {
+                Button {
+                    appCoordinator.isSettingsPresented = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .background(.black.opacity(0.45), in: Circle())
+                }
+                .padding(.leading, 16)
+                .padding(.top, 6)
             }
-            .padding(.leading, 16)
-            .padding(.top, 6)
         }
     }
 
