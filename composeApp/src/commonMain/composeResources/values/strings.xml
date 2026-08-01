@@ -2151,4 +2151,5 @@
         <item quantity="one">%d title</item>
         <item quantity="other">%d titles</item>
     </plurals>
+    <string name="settings_donate_description">Support the development of Tuvora</string>
 </resources>
