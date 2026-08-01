@@ -5,6 +5,7 @@ import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.network.SyncBackendRepository
 import com.nuvio.app.core.storage.LocalAccountDataCleaner
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.exception.AuthRestException
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.exceptions.RestException
@@ -149,7 +150,8 @@ object AuthRepository {
         Unit
     }.onFailure { e ->
         log.e(e) { "Email sign-up failed" }
-        _error.value = e.message ?: getString(Res.string.auth_sign_up_failed)
+        _error.value = e.safeAuthErrorDescription()
+            ?: getString(Res.string.auth_sign_up_failed)
     }
 
     suspend fun signInWithEmail(email: String, password: String): Result<Unit> = runCatching {
@@ -162,7 +164,8 @@ object AuthRepository {
         AuthStorage.clearAnonymousUserId()
     }.onFailure { e ->
         log.e(e) { "Email sign-in failed" }
-        _error.value = e.message ?: getString(Res.string.auth_sign_in_failed)
+        _error.value = e.safeAuthErrorDescription()
+            ?: getString(Res.string.auth_sign_in_failed)
     }
 
     suspend fun signOut(): Result<Unit> {
@@ -341,4 +344,14 @@ object AuthRepository {
         }
         return null
     }
+
+    private fun Throwable.safeAuthErrorDescription(): String? =
+        findCause<AuthRestException>()
+            ?.errorDescription
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: findCause<RestException>()
+                ?.description
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
 }
