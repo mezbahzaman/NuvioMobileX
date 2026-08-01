@@ -89,6 +89,7 @@ import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.toastMessage
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.resolveAvailableExternalPlayerId
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.navigation.LocalUseNativeNavigation
 import kotlinx.coroutines.launch
@@ -342,7 +343,9 @@ fun StreamsScreen(
 
         StreamActionsSheet(
             stream = streamActionsTarget,
-            externalPlayerEnabled = playerSettings.externalPlayerEnabled,
+            externalPlayerAvailable = resolveAvailableExternalPlayerId(playerSettings.externalPlayerId) != null,
+            externalPlayerEnabled = playerSettings.externalPlayerEnabled &&
+                resolveAvailableExternalPlayerId(playerSettings.externalPlayerId) != null,
             onDismiss = { streamActionsTarget = null },
             onCopyLink = { stream ->
                 val directUrl = stream.playableDirectUrl ?: stream.externalOpenUrl
@@ -1100,6 +1103,7 @@ private fun StreamSourceHeader(
 @Composable
 private fun StreamActionsSheet(
     stream: StreamItem?,
+    externalPlayerAvailable: Boolean,
     externalPlayerEnabled: Boolean,
     onDismiss: () -> Unit,
     onCopyLink: (StreamItem) -> Unit,
@@ -1162,23 +1166,25 @@ private fun StreamActionsSheet(
                     }
                 },
             )
-            NuvioBottomSheetDivider()
-            NuvioBottomSheetActionRow(
-                icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                title = stringResource(
-                    if (externalPlayerEnabled) {
-                        Res.string.streams_open_internal_player
-                    } else {
-                        Res.string.streams_open_external_player
+            if (externalPlayerAvailable) {
+                NuvioBottomSheetDivider()
+                NuvioBottomSheetActionRow(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    title = stringResource(
+                        if (externalPlayerEnabled) {
+                            Res.string.streams_open_internal_player
+                        } else {
+                            Res.string.streams_open_external_player
+                        },
+                    ),
+                    onClick = {
+                        onOpen(stream, !externalPlayerEnabled)
+                        coroutineScope.launch {
+                            dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
+                        }
                     },
-                ),
-                onClick = {
-                    onOpen(stream, !externalPlayerEnabled)
-                    coroutineScope.launch {
-                        dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
-                    }
-                },
-            )
+                )
+            }
             NuvioBottomSheetDivider()
             NuvioBottomSheetActionRow(
                 icon = Icons.Rounded.Download,
