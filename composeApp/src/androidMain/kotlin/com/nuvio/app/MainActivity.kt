@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
         window.setBackgroundDrawableResource(R.color.nuvio_background)
         pipRemoteActionReceiver = PipRemoteActionReceiver.register(this)
         SyncClientIdentityStorage.initialize(applicationContext)
+        com.nuvio.app.core.rec.RecEventStorage.initialize(applicationContext)
         AddonStorage.initialize(applicationContext)
         com.nuvio.app.features.iptv.XtreamAccountStorage.initialize(applicationContext)
         com.nuvio.app.features.iptv.M3UFilePicker.initialize(applicationContext)
