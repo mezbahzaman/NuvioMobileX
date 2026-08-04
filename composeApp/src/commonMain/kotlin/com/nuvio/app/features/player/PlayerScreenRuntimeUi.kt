@@ -340,6 +340,9 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             parentalWarnings = parentalWarnings,
             showParentalGuide = showParentalGuide,
             onParentalGuideAnimationComplete = { showParentalGuide = false },
+            streamInfoLines = rememberStreamInfoLines(streamInfo),
+            showStreamInfo = showStreamInfoOverlay,
+            onStreamInfoAnimationComplete = { showStreamInfoOverlay = false },
             onScrubChange = { positionMs ->
                 isScrubbingTimeline = true
                 scrubbingPositionMs = positionMs

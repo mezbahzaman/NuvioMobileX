@@ -84,6 +84,22 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 private const val TAG = "NuvioPlayer"
+
+
+/**
+ * Codec label for the stream info panel. ExoPlayer describes a track by MIME type; strip
+ * it back to the short name and run it through the shared table so ExoPlayer and libmpv
+ * agree on how a codec is spelled.
+ */
+private fun Format.displayCodecName(): String? {
+    val fromMime = sampleMimeType
+        ?.substringAfter('/', "")
+        ?.takeIf { it.isNotBlank() }
+        ?.removePrefix("x-")
+    // RFC 6381 strings ("avc1.640028", "mp4a.40.2") carry the codec before the first dot.
+    val fromCodecs = codecs?.substringBefore('.')?.trim()?.takeIf { it.isNotBlank() }
+    return StreamCodecNames.display(fromMime ?: fromCodecs)
+}
 private const val PLAYER_DIAGNOSTIC_TAG = "NuvioPlayerDiag"
 
 private class PlaybackDiagnostics {
@@ -728,6 +744,26 @@ private fun ExoPlayerSurface(
                     exoPlayer.playWhenReady = true
                 }
 
+                override fun getStreamInfo(): PlayerStreamInfo = runCatching {
+                    val video = exoPlayer.videoFormat
+                    val audio = exoPlayer.audioFormat
+                    PlayerStreamInfo(
+                        videoCodec = video?.displayCodecName(),
+                        videoWidth = video?.width?.takeIf { it > 0 },
+                        videoHeight = video?.height?.takeIf { it > 0 },
+                        videoFrameRate = video?.frameRate?.takeIf { it > 0f },
+                        videoBitrate = video?.bitrate?.takeIf { it > 0 },
+                        audioCodec = audio?.displayCodecName(),
+                        audioChannelCount = audio?.channelCount?.takeIf { it > 0 },
+                        audioSampleRate = audio?.sampleRate?.takeIf { it > 0 },
+                        audioBitrate = audio?.bitrate?.takeIf { it > 0 },
+                        playerEngine = ENGINE_LABEL_EXOPLAYER,
+                    )
+                }.getOrElse {
+                    Log.w(TAG, "Failed to read ExoPlayer stream info: ${it.message}")
+                    PlayerStreamInfo(playerEngine = ENGINE_LABEL_EXOPLAYER)
+                }
+
                 override fun setPlaybackSpeed(speed: Float) {
                     exoPlayer.setPlaybackSpeed(speed)
                 }
@@ -1202,6 +1238,11 @@ private class NuvioLibmpvView(
     @Volatile private var obsCachePositionMs = 0L
     @Volatile private var obsSpeed = 1.0
     @Volatile private var obsTrackList: MPVNode? = null
+    @Volatile private var obsVideoParams: MPVNode? = null
+    // Rolling estimates. Live MPEG-TS rarely declares a bitrate in the container, so
+    // mpv's running measurement is the only number the stream info panel can show.
+    @Volatile private var obsVideoBitrate: Double? = null
+    @Volatile private var obsAudioBitrate: Double? = null
 
     private val propertyShadow = object : MPV.EventObserver {
         override fun eventProperty(property: String) {
@@ -1219,6 +1260,9 @@ private class NuvioLibmpvView(
                 "demuxer-cache-time" -> obsCachePositionMs = 0L
                 "speed" -> obsSpeed = 1.0
                 "track-list" -> obsTrackList = null
+                "video-params" -> obsVideoParams = null
+                "video-bitrate" -> obsVideoBitrate = null
+                "audio-bitrate" -> obsAudioBitrate = null
             }
         }
 
@@ -1242,13 +1286,18 @@ private class NuvioLibmpvView(
                 "time-pos" -> obsPositionMs = value.toMillis()
                 "demuxer-cache-time" -> obsCachePositionMs = value.toMillis()
                 "speed" -> obsSpeed = value
+                "video-bitrate" -> obsVideoBitrate = value.takeIf { it > 0.0 }
+                "audio-bitrate" -> obsAudioBitrate = value.takeIf { it > 0.0 }
             }
         }
 
         override fun eventProperty(property: String, value: String) = Unit
 
         override fun eventProperty(property: String, value: MPVNode) {
-            if (property == "track-list") obsTrackList = value
+            when (property) {
+                "track-list" -> obsTrackList = value
+                "video-params" -> obsVideoParams = value
+            }
         }
 
         override fun event(eventId: Int, data: MPVNode) = Unit
@@ -1323,6 +1372,9 @@ private class NuvioLibmpvView(
             "demuxer-cache-time" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
             "speed" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
             "track-list" to MPV.mpvFormat.MPV_FORMAT_NODE,
+            "video-params" to MPV.mpvFormat.MPV_FORMAT_NODE,
+            "video-bitrate" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
+            "audio-bitrate" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
         )
         props.forEach { (name, format) -> mpv.observeProperty(name, format) }
     }
@@ -1442,6 +1494,47 @@ private class NuvioLibmpvView(
         ctl { mpv.command("seek", (offsetMs / 1000.0).toString(), "relative") }
     }
 
+    /**
+     * Stream facts for the info panel, read off the observed-property shadow only — never
+     * the mpv core, so this is safe on the main thread (a synchronous mpv_get_property
+     * takes the core lock, which a wedged live demuxer holds for seconds).
+     *
+     * Total by contract: any node access can throw if mpv publishes an unexpected shape,
+     * and this is called straight from the UI event that opens the panel.
+     */
+    fun readStreamInfo(): PlayerStreamInfo = runCatching {
+        val tracks = obsTrackList?.asArray()?.toList().orEmpty()
+        fun selected(type: String) = tracks.firstOrNull {
+            it.nodeString("type") == type && it.nodeBoolean("selected") == true
+        }
+        val video = selected("video")
+        val audio = selected("audio")
+        PlayerStreamInfo(
+            videoCodec = StreamCodecNames.display(video?.nodeString("codec")),
+            videoWidth = obsVideoParams?.nodeInt("w") ?: video?.nodeInt("demux-w"),
+            videoHeight = obsVideoParams?.nodeInt("h") ?: video?.nodeInt("demux-h"),
+            videoFrameRate = video?.nodeDouble("demux-fps")?.toFloat()?.takeIf { it > 0f },
+            // Bits per second, same unit as ExoPlayer's Format.bitrate. Measured first,
+            // then the container's average, then the HLS variant's declared rate — the
+            // only one many Xtream live channels expose.
+            videoBitrate = (
+                obsVideoBitrate
+                    ?: video?.nodeDouble("demux-bitrate")
+                    ?: video?.nodeDouble("hls-bitrate")
+                )?.takeIf { it > 0.0 }?.toInt(),
+            audioCodec = StreamCodecNames.display(audio?.nodeString("codec")),
+            audioChannelCount = audio?.nodeInt("demux-channel-count")
+                ?: audio?.nodeInt("audio-channels"),
+            audioSampleRate = audio?.nodeInt("demux-samplerate"),
+            audioBitrate = (obsAudioBitrate ?: audio?.nodeDouble("demux-bitrate"))
+                ?.takeIf { it > 0.0 }?.toInt(),
+            playerEngine = ENGINE_LABEL_LIBMPV,
+        )
+    }.getOrElse {
+        Log.w(TAG, "Failed to read libmpv stream info: ${it.message}")
+        PlayerStreamInfo(playerEngine = ENGINE_LABEL_LIBMPV)
+    }
+
     fun controller(
         context: Context,
         nowPlayingController: AndroidPlayerNowPlayingController?,
@@ -1458,6 +1551,8 @@ private class NuvioLibmpvView(
             override fun retry() {
                 ctl { loadCurrentSource(playWhenReady = true) }
             }
+
+            override fun getStreamInfo(): PlayerStreamInfo = readStreamInfo()
 
             override fun setPlaybackSpeed(speed: Float) {
                 ctl { mpv.setPropertyDouble("speed", speed.coerceIn(0.25f, 4f).toDouble()) }
@@ -1620,6 +1715,9 @@ private fun MPVNode.nodeInt(key: String): Int? =
 
 private fun MPVNode.nodeBoolean(key: String): Boolean? =
     runCatching { this[key]?.asBoolean() }.getOrNull()
+
+private fun MPVNode.nodeDouble(key: String): Double? =
+    runCatching { this[key]?.asDouble() }.getOrNull()
 
 private fun androidx.compose.ui.graphics.Color.toMpvColor(): String {
     val argb = toArgb()

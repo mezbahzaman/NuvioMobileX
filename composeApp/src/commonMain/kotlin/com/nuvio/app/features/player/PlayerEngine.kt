@@ -13,6 +13,14 @@ interface PlayerEngineController {
     fun setMuted(muted: Boolean) {}
     fun getAudioTracks(): List<AudioTrack>
     fun getSubtitleTracks(): List<SubtitleTrack>
+
+    /**
+     * Facts about the stream being decoded, for the stream info panel. Defaulted so an
+     * engine that cannot report them degrades to an empty panel instead of failing to
+     * build. Implementations must not throw — this is diagnostics, and it is called from
+     * the UI thread when the user opens the panel.
+     */
+    fun getStreamInfo(): PlayerStreamInfo = PlayerStreamInfo()
     fun selectAudioTrack(index: Int)
     fun selectSubtitleTrack(index: Int)
     fun setSubtitleUri(url: String)

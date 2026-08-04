@@ -135,6 +135,13 @@ actual fun PlatformPlayerSurface(
                 bridge.setMuted(muted)
             }
 
+            override fun getStreamInfo(): PlayerStreamInfo = runCatching {
+                decodePlayerStreamInfo(bridge.getStreamInfoJson(), ENGINE_LABEL_LIBMPV)
+            }.getOrElse { error ->
+                Logger.w(TAG, error) { "Failed to read iOS stream info" }
+                PlayerStreamInfo(playerEngine = ENGINE_LABEL_LIBMPV)
+            }
+
             override fun getAudioTracks(): List<AudioTrack> {
                 val count = bridge.getAudioTrackCount()
                 return (0 until count).map { i ->

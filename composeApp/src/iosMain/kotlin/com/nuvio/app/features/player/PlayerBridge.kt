@@ -83,6 +83,14 @@ interface NuvioPlayerBridge {
     fun getBufferedMs(): Long
     fun getPlaybackSpeed(): Float
     fun getErrorMessage(): String
+
+    /**
+     * Stream facts for the info overlay, as one JSON object matching
+     * `PlayerStreamInfoPayload`. A single call rather than a getter per field: this bridge
+     * is hand-mirrored in Swift and Gradle only compiles the Kotlin side, so every extra
+     * method is a mismatch Gradle cannot catch. Returns `""` when nothing is playing.
+     */
+    fun getStreamInfoJson(): String
     fun destroy()
 }
 

@@ -190,6 +190,7 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     func getBufferedMs() -> Int64 { return playerVC?.bufferedMs ?? 0 }
     func getPlaybackSpeed() -> Float { playerVC?.currentSpeed ?? 1.0 }
     func getErrorMessage() -> String { playerVC?.currentErrorMessage ?? "" }
+    func getStreamInfoJson() -> String { playerVC?.streamInfoJson() ?? "" }
 
     func destroy() {
         playerVC?.destroyPlayer()
@@ -994,6 +995,56 @@ final class MPVPlayerViewController: UIViewController {
         UIApplication.shared.beginReceivingRemoteControlEvents()
         publishCachedNowPlayingInfoIfNeeded()
         syncNowPlayingPlaybackState(isPlaying: isPlayerPlaying)
+    }
+
+    /// Stream facts for the info overlay, as a `PlayerStreamInfoPayload` JSON object.
+    /// Keys and units must stay in step with the Kotlin payload and with the Android and
+    /// desktop bridges: bitrates are bits per second, matching `Format.bitrate`.
+    func streamInfoJson() -> String {
+        guard mpv != nil else { return "" }
+
+        // Index of the selected track of a given type, or nil when there is none.
+        func selectedTrack(_ type: String) -> Int? {
+            let count = getInt("track-list/count")
+            for i in 0..<count where getString("track-list/\(i)/type") == type {
+                if getFlag("track-list/\(i)/selected") { return i }
+            }
+            return nil
+        }
+
+        var fields: [String] = []
+        func put(_ key: String, _ value: Int) { if value > 0 { fields.append("\"\(key)\":\(value)") } }
+        func put(_ key: String, _ value: Double) { if value > 0 { fields.append("\"\(key)\":\(value)") } }
+        func put(_ key: String, _ value: String) {
+            guard !value.isEmpty else { return }
+            // Codec names are bare identifiers, but escape defensively rather than emit
+            // malformed JSON that the Kotlin decoder would silently drop.
+            let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            fields.append("\"\(key)\":\"\(escaped)\"")
+        }
+
+        if let v = selectedTrack("video") {
+            put("videoCodec", getTrackString(v, "codec"))
+            put("videoWidth", getInt("video-params/w") > 0 ? getInt("video-params/w") : getInt("track-list/\(v)/demux-w"))
+            put("videoHeight", getInt("video-params/h") > 0 ? getInt("video-params/h") : getInt("track-list/\(v)/demux-h"))
+            put("videoFps", getDouble("track-list/\(v)/demux-fps"))
+            // Measured first, then the container's average, then the HLS variant's rate —
+            // live MPEG-TS usually declares none of the latter two.
+            var bitrate = getDouble("video-bitrate")
+            if bitrate <= 0 { bitrate = getDouble("track-list/\(v)/demux-bitrate") }
+            if bitrate <= 0 { bitrate = getDouble("track-list/\(v)/hls-bitrate") }
+            put("videoBitrate", bitrate)
+        }
+
+        if let a = selectedTrack("audio") {
+            put("audioCodec", getTrackString(a, "codec"))
+            put("audioChannels", getInt("track-list/\(a)/demux-channel-count"))
+            put("audioSampleRate", getInt("track-list/\(a)/demux-samplerate"))
+            put("audioBitrate", getDouble("audio-bitrate"))
+        }
+
+        return fields.isEmpty ? "" : "{" + fields.joined(separator: ",") + "}"
     }
 
     private func getTrackString(_ index: Int, _ field: String) -> String {

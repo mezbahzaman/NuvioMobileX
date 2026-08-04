@@ -1039,6 +1039,8 @@
     <string name="settings_playback_show_loading_overlay">Loading Overlay</string>
     <string name="settings_playback_show_loading_overlay_description">Show loading screen until first video frame appears.</string>
     <string name="settings_playback_parental_guide">Content Warnings</string>
+    <string name="settings_playback_stream_info">Stream info</string>
+    <string name="settings_playback_stream_info_description">Briefly show quality, codec and bitrate when playback starts</string>
     <string name="settings_playback_parental_guide_description">Show parental guidance overlay when playback starts.</string>
     <string name="settings_playback_subtitle_background_color">Background Color</string>
     <string name="settings_playback_subtitle_bold">Bold</string>
@@ -1793,24 +1795,10 @@
     <!-- PlayerControls a11y -->
     <string name="player_action_submit_intro">Submit Intro</string>
     <string name="player_action_video_settings">Video settings</string>
-    <string name="player_action_stream_info">Stream info</string>
-    <!-- Player stream info panel -->
-    <string name="stream_info_title">Stream info</string>
-    <string name="stream_info_section_video">Video</string>
-    <string name="stream_info_section_audio">Audio</string>
-    <string name="stream_info_section_playback">Playback</string>
-    <string name="stream_info_codec">Codec</string>
-    <string name="stream_info_resolution">Resolution</string>
-    <string name="stream_info_frame_rate">Frame rate</string>
-    <string name="stream_info_bitrate">Bitrate</string>
-    <string name="stream_info_channels">Channels</string>
-    <string name="stream_info_sample_rate">Sample rate</string>
-    <string name="stream_info_player_engine">Player</string>
-    <string name="stream_info_unavailable">Stream details aren\'t available yet. They appear once playback starts.</string>
+    <!-- Player stream info overlay -->
     <string name="stream_info_frame_rate_value">%1$s fps</string>
     <string name="stream_info_bitrate_mbps">%1$s Mbps</string>
     <string name="stream_info_bitrate_kbps">%1$s kbps</string>
-    <string name="stream_info_sample_rate_value">%1$s kHz</string>
     <string name="stream_info_channels_mono">Mono</string>
     <string name="stream_info_channels_stereo">Stereo</string>
     <string name="stream_info_channels_other">%1$dch</string>

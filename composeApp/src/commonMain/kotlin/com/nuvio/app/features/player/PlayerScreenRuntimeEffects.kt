@@ -390,6 +390,15 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         }
     }
 
+    LaunchedEffect(playbackSnapshot.isPlaying, activeSourceUrl) {
+        if (playbackSnapshot.isPlaying) {
+            // Give the engine a moment: mpv's bitrate is a rolling estimate that reads 0
+            // at first frame, and ExoPlayer has not always resolved the audio Format yet.
+            kotlinx.coroutines.delay(2_500L)
+            tryShowStreamInfo()
+        }
+    }
+
     LaunchedEffect(activeVideoId, activeSeasonNumber, activeEpisodeNumber) {
         skipIntervals = emptyList()
         activeSkipInterval = null
