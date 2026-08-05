@@ -11,11 +11,13 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.contentLength
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
@@ -84,6 +86,29 @@ private val addonHttpClient = HttpClient(Darwin) {
     expectSuccess = false
 }
 
+/**
+ * [bodyAsText] with the [MaxTextResponseBytes] guard in front of it.
+ *
+ * Ktor materializes the whole body here just as OkHttp does on Android, where a real provider's
+ * ~27 MB Xtream catalog was enough to OOM the match-index build. The bulk lists stream now
+ * (XtreamClient.streamArray), so what remains is a backstop — and unlike the Android twin it
+ * checks only the DECLARED length rather than reading incrementally, because doing the read by
+ * hand would mean re-implementing [bodyAsText]'s charset handling and risking a regression on
+ * the panels that answer in something other than UTF-8. Worth noting the declared length can be
+ * the compressed size on a gzipped response, so this bounds the obvious cases, not every case;
+ * iOS also has far more headroom than ART's fixed heap ceiling, which is where the crash lived.
+ */
+private suspend fun HttpResponse.bodyAsBoundedText(): String {
+    val declaredLength = contentLength() ?: -1L
+    if (declaredLength > MaxTextResponseBytes) {
+        throw ResponseTooLargeException(
+            "Body too large to read as text ($declaredLength bytes, " +
+                "limit ${MaxTextResponseBytes / (1024 * 1024)}MB)"
+        )
+    }
+    return bodyAsText()
+}
+
 // [dnsProvider] (P3) is Android-only: Ktor Darwin / URLSession has no per-app DNS hook, so a
 // per-playlist DoH resolver can't be installed on iOS. It's ignored here (the settings form already
 // tells the user "Android only — iOS ignores this setting").
@@ -93,7 +118,7 @@ actual suspend fun httpGetText(url: String, dnsProvider: String?): String =
             accept(ContentType.Application.Json)
         }
         .let { response ->
-            val payload = response.bodyAsText()
+            val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
@@ -111,7 +136,7 @@ actual suspend fun httpPostJson(url: String, body: String): String =
             setBody(body)
         }
         .let { response ->
-            val payload = response.bodyAsText()
+            val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
@@ -133,7 +158,7 @@ actual suspend fun httpGetTextWithHeaders(
             }
         }
         .let { response ->
-            val payload = response.bodyAsText()
+            val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
@@ -158,7 +183,7 @@ actual suspend fun httpPostJsonWithHeaders(
             setBody(body)
         }
         .let { response ->
-            val payload = response.bodyAsText()
+            val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }

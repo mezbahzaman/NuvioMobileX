@@ -23,6 +23,8 @@ import com.nuvio.app.features.tracking.providerId
 import com.nuvio.app.features.watching.application.WatchingActions
 import com.nuvio.app.features.watching.sync.ProgressDeltaEvent
 import com.nuvio.app.features.watching.sync.ProgressSyncRecord
+import com.nuvio.app.core.sync.SyncNotAuthenticatedException
+import com.nuvio.app.core.sync.SyncSession
 import com.nuvio.app.features.watching.sync.ProgressSyncAdapter
 import com.nuvio.app.features.watching.sync.SupabaseProgressSyncAdapter
 import kotlinx.coroutines.CancellationException
@@ -1388,7 +1390,55 @@ object WatchProgressRepository {
                     entries = listOf(entry),
                 )
             }.onFailure { e ->
-                log.e(e) { "Failed to push watch progress scrobble" }
+                // Signed out is expected, not a fault: the entry stays in dirtyProgressKeys and
+                // goes out from pushPendingToServer() on the next full sync.
+                if (e is SyncNotAuthenticatedException) {
+                    log.d { "Deferred watch progress scrobble — not signed in" }
+                } else {
+                    log.e(e) { "Failed to push watch progress scrobble" }
+                }
+            }
+        }
+    }
+
+    /**
+     * Pushes everything still marked dirty — the writes that were made while signed out, or whose
+     * push failed for any other reason.
+     *
+     * Runs after the pull half of a full sync, which is the safe order: the pull's merge already
+     * treats a locally-dirty key as PRESERVE_LOCAL, so nothing pushed here can be clobbered by
+     * what was just pulled, and anything the server had already accepted has been acknowledged out
+     * of the dirty set by then.
+     *
+     * Without this the dirty set was only ever read to protect local state during a merge — a
+     * scrobble that failed to push stayed dirty forever and never got another attempt, so watch
+     * progress recorded while signed out simply never reached the server.
+     */
+    internal fun pushPendingToServer(profileId: Int) {
+        if (activeSource.providerId != null) return   // a tracker owns progress; Nuvio Sync doesn't
+        if (profileId != currentProfileId) return
+        if (!SyncSession.canPush()) return
+
+        val operationGeneration = profileGeneration
+        val dirtyKeys = dirtyProgressKeysSnapshot()
+        if (dirtyKeys.isEmpty()) return
+        val entries = synchronized(entriesLock) {
+            dirtyKeys.mapNotNull { key -> entriesByProgressKey[key] }
+        }
+        if (entries.isEmpty()) return
+
+        accountScopeSnapshot().launch {
+            runCatching {
+                syncAdapter.push(profileId = profileId, entries = entries)
+                recordSuccessfulPush(
+                    profileId = profileId,
+                    operationGeneration = operationGeneration,
+                    entries = entries,
+                )
+                log.i { "Flushed ${entries.size} queued watch progress entries profile=$profileId" }
+            }.onFailure { e ->
+                // Still dirty — the next full sync tries again.
+                log.e(e) { "Failed to flush queued watch progress" }
             }
         }
     }

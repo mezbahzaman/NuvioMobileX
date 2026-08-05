@@ -37,7 +37,7 @@ import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 
 @Composable
-private fun rememberHomeSkeletonBrush(): Brush {
+internal fun rememberHomeSkeletonBrush(): Brush {
     val shimmerColors = listOf(
         MaterialTheme.colorScheme.surface,
         MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
