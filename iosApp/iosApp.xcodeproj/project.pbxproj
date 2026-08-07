@@ -150,6 +150,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = E4075507B4A6F771FEF44E6F /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* Verify mpv engine */,
 				8C96BAEBBE1F4269A0BADC2B /* Compile Kotlin Framework */,
 				79E42700D221AF24510E3E09 /* Sources */,
 				B8D8368DBB6E1F38F403E5AA /* Frameworks */,
@@ -234,6 +235,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* Verify mpv engine */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Verify mpv engine";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/Scripts/verify-mpv-engine.sh\"\n";
+		};
 		C1D2E3F40516273849A5B6C7 /* Upload PostHog dSYMs */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
