@@ -123,6 +123,11 @@ struct iOSApp: App {
         // (the default 30s starved uploads during crash-loops).
         config.flushIntervalSeconds = 10
         PostHogSDK.shared.setup(config)
+        // Lets shared Kotlin code capture without linking a PostHog SDK into the framework.
+        // Registered before any shared code can run, so no early event is dropped.
+        AnalyticsSink.shared.register { event, properties in
+            PostHogSDK.shared.capture(event, properties: properties)
+        }
         PostHogSDK.shared.register([geoIpDisableProperty: true])
         if crashReportsEnabled() {
             PostHogSDK.shared.optIn()

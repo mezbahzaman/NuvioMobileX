@@ -398,15 +398,29 @@ private fun ExoPlayerSurface(
             }
         }
 
+        val minBufferMs = 15_000
+        val maxBufferMs = 70_000
+        val bufferForPlaybackMs = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS
+        val bufferForPlaybackAfterRebufferMs = 5_000
         val loadControl = DefaultLoadControl.Builder()
             .setTargetBufferBytes(100 * 1024 * 1024)
             .setBufferDurationsMs(
-                15_000,
-                70_000,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                5_000
+                minBufferMs,
+                maxBufferMs,
+                bufferForPlaybackMs,
+                bufferForPlaybackAfterRebufferMs
             )
             .build()
+        // Published so a reported live freeze carries the thresholds that were actually in
+        // effect; a stall that never clears is only explained by these if the player needed
+        // more buffered media to resume than a realtime source could produce.
+        com.nuvio.app.core.analytics.LivePlaybackBufferProfile.current =
+            com.nuvio.app.core.analytics.LivePlaybackBufferProfile.Values(
+                minBufferMs = minBufferMs,
+                maxBufferMs = maxBufferMs,
+                bufferForPlaybackMs = bufferForPlaybackMs,
+                bufferForPlaybackAfterRebufferMs = bufferForPlaybackAfterRebufferMs,
+            )
 
         val player = if (useLibass) {
             ExoPlayer.Builder(context)
@@ -1363,6 +1377,14 @@ private class NuvioLibmpvView(
         // Bound blocking network reads (ffmpeg rw_timeout): a half-dead live socket
         // otherwise wedges the demuxer — and with it any thread waiting on the core.
         mpv.setOptionString("network-timeout", "15")
+        // keep-open (set below) parks the core on the last frame at EOF, which is right for a
+        // file and wrong for a live channel: an IPTV panel closing the socket mid-stream reads
+        // as a clean EOF. Letting ffmpeg re-open the URL heals a transient drop before the
+        // app-level reconnect (LivePlaybackFreezeTracking) has to rebuild playback.
+        mpv.setOptionString(
+            "stream-lavf-o",
+            "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=5"
+        )
         mpv.setOptionString("tls-verify", "yes")
         mpv.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
         mpv.setOptionString("demuxer-max-bytes", "${libmpvCacheBytes()}").logIfMpvError("demuxer-max-bytes")

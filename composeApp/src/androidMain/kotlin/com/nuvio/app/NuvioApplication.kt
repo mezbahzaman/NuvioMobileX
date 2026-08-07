@@ -60,6 +60,10 @@ class NuvioApplication : Application() {
             flushIntervalSeconds = 10
         }
         PostHogAndroid.setup(this, config)
+        // Lets shared code capture without depending on an Android-only SDK.
+        com.nuvio.app.core.analytics.AnalyticsSink.register { event, properties ->
+            PostHog.capture(event, properties = properties)
+        }
         PostHog.register(PostHogPrivacy.GEOIP_DISABLE_PROPERTY, true)
         if (crashReportsEnabled) {
             PostHog.optIn()
