@@ -64,6 +64,23 @@ class NuvioApplication : Application() {
         com.nuvio.app.core.analytics.AnalyticsSink.register { event, properties ->
             PostHog.capture(event, properties = properties)
         }
+        // Breadcrumbs persist locally so AppExitReporter can attribute a process death on the
+        // NEXT launch; their live-event side goes through the sink above and is consent-gated
+        // by the SDK like every other capture.
+        com.nuvio.app.core.analytics.Breadcrumbs.crashWriter =
+            object : com.nuvio.app.core.analytics.Breadcrumbs.CrashWriter {
+                override fun onScreen(name: String) {
+                    AppExitReporter.recordRoute(this@NuvioApplication, name)
+                }
+
+                override fun onPlaybackStarted(kind: String, engine: String, surface: String) {
+                    AppExitReporter.recordPlaybackStarted(this@NuvioApplication, kind, engine, surface)
+                }
+
+                override fun onPlaybackStopped() {
+                    AppExitReporter.recordPlaybackStopped(this@NuvioApplication)
+                }
+            }
         PostHog.register(PostHogPrivacy.GEOIP_DISABLE_PROPERTY, true)
         if (crashReportsEnabled) {
             PostHog.optIn()

@@ -496,6 +496,11 @@ final class MPVPlayerViewController: UIViewController {
             "stream-lavf-o",
             "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=5"
         ))
+        // mpv's defaults keep ~150MiB of demuxer cache ahead plus 50MiB behind, in memory. iOS
+        // kills on total footprint (jetsam), so a long live session on those defaults is exactly
+        // the "crashes minutes into a stream" report. Same budgets as the Android build.
+        checkError(mpv_set_option_string(mpv, "demuxer-max-bytes", "64MiB"))
+        checkError(mpv_set_option_string(mpv, "demuxer-max-back-bytes", "32MiB"))
         checkError(mpv_set_option_string(mpv, "target-colorspace-hint", "yes"))
         checkError(mpv_set_option_string(mpv, "tone-mapping", "auto"))
         checkError(mpv_set_option_string(mpv, "hdr-compute-peak", "yes"))
