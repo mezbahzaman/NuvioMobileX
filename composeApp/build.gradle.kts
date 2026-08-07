@@ -580,6 +580,14 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        // Host unit tests run on the JVM with no Android Context, so the framework SQLite driver
+        // can't open. Tests that exercise IptvContentDb install the bundled driver in-memory via
+        // IptvContentDbDriver.openForTests.
+        getByName("androidHostTest").dependencies {
+            // The -jvm artifact explicitly: the default resolves the ANDROID variant, whose
+            // native sqliteJni .so isn't loadable on a desktop-JVM host test.
+            implementation("androidx.sqlite:sqlite-bundled-jvm:${libs.versions.androidx.sqlite.get()}")
+        }
     }
 }
 

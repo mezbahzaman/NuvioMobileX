@@ -114,16 +114,24 @@ class StalkerRequestCountTest {
                 "handshake" -> """{"js":{"token":"T"}}"""
                 "get_profile" -> """{"js":{}}"""
                 "get_epg_info" -> {
-                    // guide for channels 1..3 only — 4..6 legitimately have no EPG
+                    // guide for channels 1..3 only — 4..6 legitimately have no EPG. Timestamps
+                    // straddle NOW: the streamed store serves now/next by the clock (end > now),
+                    // so an epoch-1970 fixture would correctly read back as "nothing airing".
+                    val nowSec = System.currentTimeMillis() / 1000
                     val ch = (1..3).joinToString(",") {
-                        """"$it":[{"name":"Now $it","descr":"d","start_timestamp":"1000","stop_timestamp":"2000"}]"""
+                        """"$it":[{"name":"Now $it","descr":"d","start_timestamp":"${nowSec - 60}","stop_timestamp":"${nowSec + 600}"}]"""
                     }
                     """{"js":{"data":{$ch}}}"""
                 }
                 else -> """{"js":[]}"""
             }
         }
-        StalkerClient.sessionFactory = { StalkerSession(it, portal) }
+        // Drive BOTH seams from the same fake: the bulk-EPG path streams now, so hand it the
+        // fake's body as one chunk. The streamed guide lands in IptvContentDb, which on a host
+        // test needs the bundled in-memory driver (no Android Context here).
+        com.nuvio.app.features.iptv.content.IptvContentDbDriver.openForTests =
+            { androidx.sqlite.driver.bundled.BundledSQLiteDriver().open(":memory:") }
+        StalkerClient.sessionFactory = { StalkerSession(it, portal, { u, h, c -> c(portal(u, h)) }) }
         val acc = account("rc-epg")
 
         // The hub asks per tile — 6 channels, including 3 with no guide at all.

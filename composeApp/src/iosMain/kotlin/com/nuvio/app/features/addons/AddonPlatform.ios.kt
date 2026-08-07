@@ -204,10 +204,12 @@ actual suspend fun httpStreamLines(
     url: String,
     userAgent: String?,
     dnsProvider: String?,   // Android-only (no-op on iOS — see httpGetText).
+    headers: Map<String, String>,
     onLine: (String) -> Unit,
 ) {
     addonHttpClient.prepareGet(url) {
         if (!userAgent.isNullOrBlank()) header(HttpHeaders.UserAgent, userAgent)
+        for ((k, v) in headers) header(k, v)
     }.execute { response ->
         if (!response.status.isSuccess()) {
             error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
