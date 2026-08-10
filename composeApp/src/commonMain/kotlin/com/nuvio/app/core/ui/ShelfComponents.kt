@@ -180,22 +180,27 @@ fun NuvioPosterCard(
             contentAlignment = Alignment.Center,
         ) {
             // Artwork is optional and IPTV panels are full of dead poster links, so the box must
-            // never read as an unlabelled rectangle: the centred title stands in whenever there is
-            // no usable URL *or* the load fails. A successful load is untouched — the title is only
-            // composed once the image reports Error, never while it is still loading.
+            // never read as an unlabelled rectangle — or as a blank flash: the centred title
+            // stands in from the first frame and stays through loading and failure; only a
+            // successful decode replaces it. (Memory-cache hits report Success during
+            // composition, so cached artwork never shows the title at all.)
             val hasImageUrl = !imageUrl.isNullOrBlank()
             val imageFailed = remember(imageUrl) { mutableStateOf(false) }
+            val imageLoaded = remember(imageUrl) { mutableStateOf(false) }
             if (hasImageUrl) {
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = title,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
-                    onState = { state -> imageFailed.value = state is AsyncImagePainter.State.Error },
+                    onState = { state ->
+                        imageFailed.value = state is AsyncImagePainter.State.Error
+                        imageLoaded.value = state is AsyncImagePainter.State.Success
+                    },
                 )
             }
             // Read after the image composes, so an onState write lands as a forward invalidation.
-            val showsFallbackTitle = !hasImageUrl || imageFailed.value
+            val showsFallbackTitle = !hasImageUrl || imageFailed.value || !imageLoaded.value
             if (showsFallbackTitle) {
                 Text(
                     text = title,

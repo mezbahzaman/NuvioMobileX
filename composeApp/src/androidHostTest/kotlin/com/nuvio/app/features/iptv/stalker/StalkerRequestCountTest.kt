@@ -3,6 +3,7 @@ package com.nuvio.app.features.iptv.stalker
 import com.nuvio.app.features.iptv.XtreamAccount
 import kotlinx.coroutines.runBlocking
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -57,9 +58,37 @@ class StalkerRequestCountTest {
         macAddress = "00:1A:79:58:B3:A6",
     )
 
+    @BeforeTest
+    fun setUpDb() {
+        // The lineup mirror + write-through store live in IptvContentDb; host tests have no
+        // Android Context, so install the bundled in-memory driver (opened once, then cached).
+        com.nuvio.app.features.iptv.content.IptvContentDbDriver.openForTests =
+            { androidx.sqlite.driver.bundled.BundledSQLiteDriver().open(":memory:") }
+    }
+
     @AfterTest
     fun tearDown() {
         StalkerClient.sessionFactory = { StalkerSession(it) }
+    }
+
+    @Test
+    fun `a browsed movie survives a process death and plays without re-finding it`() = runBlocking {
+        StalkerClient.sessionFactory = { StalkerSession(it, fakePortal) }
+        val acc = account("rc-coldvod")
+
+        // Browse one VOD page: rows land in the write-through store with their cmd.
+        StalkerClient.vodMovies(acc, null).getOrThrow()
+
+        // "Process death": in-memory caches gone, the SQLite store intact.
+        StalkerClient.clearMemoryCachesForTest()
+        val before = requests.size
+
+        val url = StalkerClient.resolveMovieUrl(acc, 3)
+        assertEquals("http://portal/live/999.ts?token=x", url)
+        // The bug this pins: the cold lookup used to fall back to scanning the catalog
+        // (FALLBACK_SCAN pages of get_ordered_list) and still usually miss at 63k-movie scale.
+        // Now: create_link and NOTHING else.
+        assertEquals(listOf("vod/create_link"), requests.drop(before))
     }
 
     @Test
