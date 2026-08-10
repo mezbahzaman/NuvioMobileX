@@ -169,6 +169,42 @@ class PosterPipelineTest {
         )
     }
 
+    @Test
+    fun `lastAddedAt bumps only when a sync ADDS items`() = runBlocking {
+        val p = "prov-lastadded"
+        XtreamMatchIndex.rebuild(p, MatchKind.MOVIE, listOf(bare(1), bare(2)))
+        val afterBuild = XtreamMatchIndex.lastAddedAt(p, MatchKind.MOVIE)
+        assertTrue(afterBuild > 0, "first build must count as additions")
+
+        Thread.sleep(5)
+        XtreamMatchIndex.sync(p, MatchKind.MOVIE, listOf(bare(1), bare(2)))
+        assertEquals(afterBuild, XtreamMatchIndex.lastAddedAt(p, MatchKind.MOVIE))
+
+        Thread.sleep(5)
+        XtreamMatchIndex.sync(p, MatchKind.MOVIE, listOf(bare(1), bare(2), bare(3)))
+        assertTrue(XtreamMatchIndex.lastAddedAt(p, MatchKind.MOVIE) > afterBuild)
+
+        val beforeReset = XtreamMatchIndex.lastAddedAt(p, MatchKind.MOVIE)
+        Thread.sleep(5)
+        XtreamMatchIndex.distrustNegativeMappings(p)
+        assertTrue(XtreamMatchIndex.lastAddedAt(p, MatchKind.MOVIE) > beforeReset)
+    }
+
+    @Test
+    fun `probe returns indexed items by normalized name key`() = runBlocking {
+        // Regression: probe()'s JOIN once selected 6 columns into the 9-column shared reader —
+        // every tier-3 name match threw "column index out of range" and the provider silently
+        // contributed no streams (shipped in v1.4.24; TV was unaffected).
+        val p = "prov-probe"
+        XtreamMatchIndex.rebuild(
+            p, MatchKind.MOVIE,
+            listOf(bare(1, "The Devil Wears Prada 2 (2026)"), bare(2, "Unrelated Movie"))
+        )
+        val hits = XtreamMatchIndex.probe(p, MatchKind.MOVIE, "the devil wears prada 2")
+        assertEquals(listOf(1), hits.map { it.sid })
+        assertEquals("The Devil Wears Prada 2 (2026)", hits.single().name)
+    }
+
     // ---- enricher over the real transport --------------------------------------------------
 
     @Test
