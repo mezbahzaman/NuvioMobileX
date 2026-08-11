@@ -478,7 +478,7 @@ fun App(
             .components {
                 add(SvgDecoder.Factory())
             }
-            .configurePlatformImageLoader()
+            .configurePlatformImageLoader(context)
             .build()
     }
     val selectedTheme by remember {
