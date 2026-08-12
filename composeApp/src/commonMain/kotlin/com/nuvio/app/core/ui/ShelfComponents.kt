@@ -73,6 +73,7 @@ fun <T> NuvioShelfSection(
     itemSpacing: Dp = 10.dp,
     onViewAllClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
+    headerLeading: (@Composable () -> Unit)? = null,
     key: ((T) -> Any)? = null,
     animatePlacement: Boolean = false,
     state: LazyListState = rememberLazyListState(),
@@ -101,6 +102,7 @@ fun <T> NuvioShelfSection(
                 modifier = Modifier.padding(horizontal = headerHorizontalPadding),
                 onViewAllClick = onViewAllClick,
                 viewAllPillSize = viewAllPillSize,
+                leading = headerLeading,
             )
         }
         LazyRow(
@@ -279,6 +281,7 @@ private fun NuvioShelfSectionHeader(
     modifier: Modifier = Modifier,
     onViewAllClick: (() -> Unit)? = null,
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
     Column(
@@ -289,6 +292,7 @@ private fun NuvioShelfSectionHeader(
             horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            leading?.invoke()
             Text(
                 text = title,
                 modifier = Modifier.weight(1f),

@@ -8,11 +8,31 @@ import coil3.PlatformContext
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
+import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.allowRgb565
 import coil3.size.Precision
+import com.nuvio.app.core.network.IPv4FirstDns
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import okhttp3.OkHttpClient
 
 internal actual fun ImageLoader.Builder.configurePlatformImageLoader(context: PlatformContext): ImageLoader.Builder =
     components {
+        // Explicit fetcher so image loads share the app's IPv4-first DNS ordering — badge/poster
+        // CDNs advertise AAAA records that dead-end on broken-IPv6 routes (same fix as TV's
+        // image loader; the service-loaded default fetcher uses a stock client without it).
+        add(
+            KtorNetworkFetcherFactory(
+                HttpClient(OkHttp) {
+                    engine {
+                        preconfigured = OkHttpClient.Builder()
+                            .dns(IPv4FirstDns())
+                            .followRedirects(true)
+                            .build()
+                    }
+                }
+            )
+        )
         if (Build.VERSION.SDK_INT >= 28) {
             add(AnimatedImageDecoder.Factory())
         } else {
