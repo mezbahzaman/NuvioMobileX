@@ -9,10 +9,16 @@ private let sensitivePropertyNames: Set<String> = [
     "refresh_token", "authorization", "password", "secret", "cookie", "api_key"
 ]
 
+/// Mirrors `resolveDiagnosticsEnabled` in the shared Kotlin: absent means on, a stored value wins.
+///
+/// This drives PostHog's opt-out, so it governs every event the app sends, not only crashes. It
+/// shipped defaulting to off in build 114, and the platform went dark — two weeks later only one
+/// iOS user on a post-114 build was reporting at all, against 75 on builds that predated the gate.
+/// Someone who has explicitly turned it off keeps that choice.
 private func crashReportsEnabled() -> Bool {
     let defaults = UserDefaults.standard
-    return defaults.object(forKey: crashReportsEnabledKey) != nil
-        && defaults.bool(forKey: crashReportsEnabledKey)
+    guard defaults.object(forKey: crashReportsEnabledKey) != nil else { return true }
+    return defaults.bool(forKey: crashReportsEnabledKey)
 }
 
 private func isSensitiveProperty(_ key: String) -> Bool {
