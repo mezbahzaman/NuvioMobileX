@@ -78,6 +78,7 @@ fun <T> NuvioShelfSection(
     animatePlacement: Boolean = false,
     state: LazyListState = rememberLazyListState(),
     recTracking: RecShelfTracking<T>? = null,
+    endContent: (@Composable () -> Unit)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
     // Recommendation impressions. Opt-in per call site rather than automatic, because this
@@ -131,6 +132,7 @@ fun <T> NuvioShelfSection(
                     }
                 }
             }
+            endContent?.let { content -> item { content() } }
         }
     }
 }
@@ -146,6 +148,7 @@ fun NuvioPosterCard(
     bottomLeftLogoUrl: String? = null,
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
+    compact: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -206,11 +209,13 @@ fun NuvioPosterCard(
             if (showsFallbackTitle) {
                 Text(
                     text = title,
-                    modifier = Modifier.padding(horizontal = NuvioTokens.Space.s14),
-                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(
+                        horizontal = if (compact) NuvioTokens.Space.s8 else NuvioTokens.Space.s14,
+                    ),
+                    style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.titleMedium,
                     color = tokens.colors.textMuted,
                     textAlign = TextAlign.Center,
-                    maxLines = 3,
+                    maxLines = if (compact) 2 else 3,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -253,7 +258,7 @@ fun NuvioPosterCard(
         if (shouldShowTitleBelow) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
                 color = tokens.colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
