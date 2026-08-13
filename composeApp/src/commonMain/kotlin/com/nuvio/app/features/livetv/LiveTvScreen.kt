@@ -243,12 +243,20 @@ fun LiveTvScreen(
             EnterImmersivePlayerMode(keepScreenAwake = snapshot.isPlaying || snapshot.isLoading)
         }
 
-        // Fullscreen controls auto-hide while playing; always shown when docked.
+        // The centred play/pause button auto-hides while playing in BOTH layouts; the docked edge
+        // chrome stays. See LiveTvOverlayPolicy for why they are treated separately.
         var controlsVisible by remember { mutableStateOf(true) }
         LaunchedEffect(fullscreen) { controlsVisible = true }
-        LaunchedEffect(controlsVisible, fullscreen, snapshot.isPlaying) {
-            if (fullscreen && controlsVisible && snapshot.isPlaying) {
-                delay(3500)
+        val overlay = LiveTvOverlayPolicy.evaluate(
+            LiveTvOverlayPolicy.Input(
+                fullscreen = fullscreen,
+                isPlaying = snapshot.isPlaying,
+                controlsShown = controlsVisible,
+            )
+        )
+        LaunchedEffect(overlay.autoHideScheduled) {
+            if (overlay.autoHideScheduled) {
+                delay(LiveTvOverlayPolicy.AUTO_HIDE_DELAY_MS)
                 controlsVisible = false
             }
         }
@@ -278,7 +286,11 @@ fun LiveTvScreen(
                     )
                     .background(Color.Black)
                     .then(
-                        if (fullscreen) Modifier.clickable { controlsVisible = !controlsVisible } else Modifier,
+                        if (overlay.tapTogglesControls) {
+                            Modifier.clickable { controlsVisible = !controlsVisible }
+                        } else {
+                            Modifier
+                        },
                     ),
             ) {
                 LivePlayerSurface(
@@ -346,7 +358,7 @@ fun LiveTvScreen(
 
                 if (fullscreen) {
                     FullscreenControls(
-                        visible = controlsVisible,
+                        visible = overlay.chromeVisible,
                         title = currentTitle,
                         isPlaying = snapshot.isPlaying,
                         showPlayPause = showPlayPause,
@@ -358,7 +370,7 @@ fun LiveTvScreen(
                 } else {
                     DockedPlayerOverlay(
                         isPlaying = snapshot.isPlaying,
-                        showPlayPause = showPlayPause,
+                        showPlayPause = showPlayPause && overlay.centreControlVisible,
                         danger = colors.danger,
                         onPlayPause = { if (snapshot.isPlaying) controller?.pause() else controller?.play() },
                         onEnterFullscreen = { setFullscreen(true) },
