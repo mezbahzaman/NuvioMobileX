@@ -44,4 +44,23 @@ class MpvSurfaceThreadingTest {
                 "which ANRs whenever the surface resizes (docked <-> fullscreen).",
         )
     }
+
+    @Test
+    fun surfaceAttachAndDetachAreOverriddenSoLifecycleCallsNeverRunOnMain() {
+        val viewClass = Class.forName("com.nuvio.app.features.player.NuvioLibmpvView")
+
+        listOf("surfaceCreated", "surfaceDestroyed").forEach { methodName ->
+            val declaringClass = viewClass.getDeclaredMethod(
+                methodName,
+                SurfaceHolder::class.java,
+            ).declaringClass
+
+            assertEquals(
+                viewClass,
+                declaringClass,
+                "$methodName must stay overridden: BaseMPVView performs synchronous native " +
+                    "surface lifecycle calls on Main instead of the serialized mpv control queue.",
+            )
+        }
+    }
 }
