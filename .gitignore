@@ -32,4 +32,9 @@ PERFORMANCE_FINDINGS.md
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
+
+# Hand-made backups of the built MPVKit binaries, kept next to the checkout before
+# rebuilding the engine. Hundreds of MB of .xcframework output — the same artifacts
+# the build produces, so they belong on disk, not in the repo. Dated, hence the glob.
+MPVKit-dist-backup-*/
 iosApp/Configuration/PostHog.local.xcconfig
