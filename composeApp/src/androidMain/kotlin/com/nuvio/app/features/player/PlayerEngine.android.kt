@@ -1796,6 +1796,16 @@ private class NuvioLibmpvView(
                 ctl { loadCurrentSource(playWhenReady = true) }
             }
 
+            /**
+             * `video-reload` reinitialises the video track off the demuxer that is already
+             * connected, so a wedged decoder is reset without asking the provider for a new
+             * link. Queued through [ctl] like every other mpv write — never on Main.
+             */
+            override fun resetVideoPipeline(): Boolean {
+                ctl { mpv.command("video-reload") }
+                return true
+            }
+
             override fun getStreamInfo(): PlayerStreamInfo = readStreamInfo()
 
             override fun setPlaybackSpeed(speed: Float) {
