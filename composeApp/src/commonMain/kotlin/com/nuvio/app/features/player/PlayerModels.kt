@@ -219,6 +219,21 @@ data class PlayerPlaybackSnapshot(
     val playbackSpeed: Float = 1f,
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+    /**
+     * Monotonic evidence that the video output is alive, normalised across engines: ExoPlayer
+     * counts rendered frames, mpv increments while its measured output FPS is non-zero. It stands
+     * still exactly when the picture does, which [com.nuvio.app.core.analytics.LivePlaybackFreezePolicy]
+     * needs because a frozen picture with live audio still advances [positionMs].
+     */
+    val videoProgressTicks: Long = 0L,
+    /**
+     * Whether the current track actually carries a picture. Reported separately from
+     * [videoWidth] because the mpv path deliberately leaves the dimensions at 0 — reading them
+     * would mean touching mpv from the main thread — so dimensions cannot stand in for "has
+     * video" there. IPTV lineups are full of radio stations, and without this every one of them
+     * would look permanently frozen.
+     */
+    val hasVideoTrack: Boolean = false,
 )
 
 data class PlayerNowPlayingInfo(

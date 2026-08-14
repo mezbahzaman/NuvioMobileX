@@ -327,6 +327,8 @@ actual fun PlatformPlayerSurface(
     LaunchedEffect(bridge) {
         var lastReportedError: String? = null
         while (isActive) {
+            // -1 means the track carries no picture; see NuvioPlayerBridge.getVideoFrameTicks.
+            val videoTicks = bridge.getVideoFrameTicks()
             val snapshot = PlayerPlaybackSnapshot(
                 isLoading = bridge.getIsLoading(),
                 isPlaying = bridge.getIsPlaying(),
@@ -335,6 +337,8 @@ actual fun PlatformPlayerSurface(
                 positionMs = bridge.getPositionMs(),
                 bufferedPositionMs = bridge.getBufferedMs(),
                 playbackSpeed = bridge.getPlaybackSpeed(),
+                videoProgressTicks = videoTicks.coerceAtLeast(0L),
+                hasVideoTrack = videoTicks >= 0L,
             )
             latestOnSnapshot.value(snapshot)
             val errorMessage = bridge.getErrorMessage().ifBlank { null }

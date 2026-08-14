@@ -189,6 +189,13 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     func getPositionMs() -> Int64 { return playerVC?.positionMs ?? 0 }
     func getBufferedMs() -> Int64 { return playerVC?.bufferedMs ?? 0 }
     func getPlaybackSpeed() -> Float { playerVC?.currentSpeed ?? 1.0 }
+
+    /// -1 when the track has no picture, so the freeze policy can tell an IPTV radio station
+    /// from a video channel whose picture died. See NuvioPlayerBridge.getVideoFrameTicks.
+    func getVideoFrameTicks() -> Int64 {
+        guard let vc = playerVC, vc.hasVideoTrack else { return -1 }
+        return vc.videoFrameTicks
+    }
     func getErrorMessage() -> String { playerVC?.currentErrorMessage ?? "" }
     func getStreamInfoJson() -> String { playerVC?.streamInfoJson() ?? "" }
 
@@ -282,6 +289,11 @@ final class MPVPlayerViewController: UIViewController {
     var positionMs: Int64 = 0
     var bufferedMs: Int64 = 0
     var currentSpeed: Float = 1.0
+
+    /// Counts polls where mpv reported the video filter chain producing frames. Only ever
+    /// increments, so any change means the picture moved since the last sample.
+    var videoFrameTicks: Int64 = 0
+    var hasVideoTrack: Bool = false
     var currentErrorMessage: String {
         errorStateLock.lock()
         defer { errorStateLock.unlock() }
@@ -908,6 +920,11 @@ final class MPVPlayerViewController: UIViewController {
         positionMs = Int64(max(position, 0) * 1000)
         bufferedMs = Int64(max(position + cached, 0) * 1000)
         currentSpeed = Float(speed > 0 ? speed : 1.0)
+
+        // Live-freeze detection: the picture can stop while audio plays on, which leaves every
+        // other field here looking healthy. `estimated-vf-fps` is the one signal that stops too.
+        hasVideoTrack = !(getString("video-format") ?? "").isEmpty
+        if getDouble("estimated-vf-fps") > 0 { videoFrameTicks &+= 1 }
 
         let shouldPublishNowPlayingState = !isPlayerLoading || isPlayerPlaying || durationMs > 0 || positionMs > 0
         if shouldPublishNowPlayingState {

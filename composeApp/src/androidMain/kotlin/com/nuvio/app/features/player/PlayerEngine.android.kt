@@ -1417,6 +1417,19 @@ private class NuvioLibmpvView(
     @Volatile private var obsVideoBitrate: Double? = null
     @Volatile private var obsAudioBitrate: Double? = null
 
+    /**
+     * Counts samples where mpv reported the video output running. Incremented on the mpv event
+     * thread — never read through mpv from the main thread, which is what keeps `snapshot()`
+     * mpv-free (the ANR fix).
+     *
+     * CAVEAT: `estimated-vf-fps` measures the *filter chain* output, so it proves decoding is
+     * still producing frames rather than that the VO presented them. It catches the reported
+     * "picture frozen, audio playing" wedge; a VO that stops presenting frames a healthy decoder
+     * keeps producing would slip past it. Verify against a genuinely frozen channel before
+     * trusting it as the only signal.
+     */
+    @Volatile private var obsVideoFrameTicks = 0L
+
     private val propertyShadow = object : MPV.EventObserver {
         override fun eventProperty(property: String) {
             // MPV_FORMAT_NONE: property became unavailable — fall back to the same
@@ -1436,6 +1449,10 @@ private class NuvioLibmpvView(
                 "video-params" -> obsVideoParams = null
                 "video-bitrate" -> obsVideoBitrate = null
                 "audio-bitrate" -> obsAudioBitrate = null
+                // Deliberately NOT reset: the freeze policy treats any change in this counter as
+                // a rendered frame, so zeroing it when the property goes unavailable would read
+                // as the picture coming back. loadSource rebases it instead.
+                "estimated-vf-fps" -> Unit
             }
         }
 
@@ -1461,6 +1478,7 @@ private class NuvioLibmpvView(
                 "speed" -> obsSpeed = value
                 "video-bitrate" -> obsVideoBitrate = value.takeIf { it > 0.0 }
                 "audio-bitrate" -> obsAudioBitrate = value.takeIf { it > 0.0 }
+                "estimated-vf-fps" -> if (value > 0.0) obsVideoFrameTicks++
             }
         }
 
@@ -1593,6 +1611,9 @@ private class NuvioLibmpvView(
             "video-params" to MPV.mpvFormat.MPV_FORMAT_NODE,
             "video-bitrate" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
             "audio-bitrate" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
+            // Fires roughly per frame, like time-pos above; the shadow handler is a volatile
+            // increment, so the cost is comparable to what this observer already carries.
+            "estimated-vf-fps" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
         )
         props.forEach { (name, format) -> mpv.observeProperty(name, format) }
     }
@@ -1680,6 +1701,10 @@ private class NuvioLibmpvView(
             positionMs = positionMs,
             bufferedPositionMs = maxOf(positionMs, cachePositionMs),
             playbackSpeed = obsSpeed.toFloat(),
+            videoProgressTicks = obsVideoFrameTicks,
+            // video-params is present exactly when a video track is decoding, and it is already
+            // in the shadow — so "has a picture" costs nothing extra and stays off the main thread.
+            hasVideoTrack = obsVideoParams != null,
             // ponytail: videoWidth/videoHeight left at their 0 defaults. Upstream read them via
             // mpv.getPropertyInt here, but snapshot() runs on the main thread and must stay mpv-free
             // (the ANR fix). To restore PiP aspect ratio, observe video-params/dw,dh in the property
@@ -2007,6 +2032,10 @@ private fun ExoPlayer.snapshot(): PlayerPlaybackSnapshot {
         playbackSpeed = playbackParameters.speed,
         videoWidth = videoWidth,
         videoHeight = videoHeight,
+        // The renderer's own count of frames it put on screen — the one playback signal audio
+        // cannot keep alive, and the direct analogue of libvlc's `i_displayed_pictures`.
+        videoProgressTicks = videoDecoderCounters?.renderedOutputBufferCount?.toLong() ?: 0L,
+        hasVideoTrack = videoFormat != null,
     )
 }
 

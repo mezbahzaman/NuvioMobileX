@@ -85,6 +85,19 @@ interface NuvioPlayerBridge {
     fun getErrorMessage(): String
 
     /**
+     * Evidence that the video output is alive, for live-freeze detection: a counter that only
+     * moves while mpv reports frames coming out of the filter chain. Audio cannot advance it,
+     * which is the whole point — a frozen picture with playing audio keeps the playhead moving
+     * and is otherwise indistinguishable from healthy playback.
+     *
+     * Returns **-1 when the track has no video at all** (IPTV radio stations), so the caller can
+     * tell "no picture expected" from "picture stopped". One method rather than a counter plus a
+     * has-video flag, because every method here is a hand-mirrored Swift signature Gradle cannot
+     * check — see the note on [getStreamInfoJson].
+     */
+    fun getVideoFrameTicks(): Long
+
+    /**
      * Stream facts for the info overlay, as one JSON object matching
      * `PlayerStreamInfoPayload`. A single call rather than a getter per field: this bridge
      * is hand-mirrored in Swift and Gradle only compiles the Kotlin side, so every extra
