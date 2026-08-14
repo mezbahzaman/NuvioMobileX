@@ -571,6 +571,7 @@ kotlin {
             implementation(libs.supabase.realtime)
             implementation(libs.supabase.auth)
             implementation(libs.supabase.functions)
+            implementation(libs.supabase.storage)
             implementation(libs.reorderable)
             // TMDB->Xtream match index: framework artifact resolves to AndroidSQLiteDriver
             // on Android and NativeSQLiteDriver (system libsqlite3) on iOS — no bundled binary

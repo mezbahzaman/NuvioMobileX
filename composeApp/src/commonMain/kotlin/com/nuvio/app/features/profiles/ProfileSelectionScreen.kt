@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.ui.ProfileMeshBackground
@@ -298,6 +299,9 @@ private fun ProfileAvatarCard(
     val avatarImageUrl = remember(profile.avatarUrl, avatarItem) {
         profileAvatarImageUrl(profile, avatarItem)
     }
+    // A URL that does not load must fall back to the initials. Without this the else-branch below
+    // only fires when there is no URL at all, so a broken link renders as an empty coloured circle.
+    var avatarLoadFailed by remember(avatarImageUrl) { mutableStateOf(false) }
 
     val animAlpha = remember { Animatable(0f) }
     val animScale = remember { Animatable(0.85f) }
@@ -363,12 +367,15 @@ private fun ProfileAvatarCard(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                if (avatarImageUrl != null) {
+                if (avatarImageUrl != null && !avatarLoadFailed) {
                     AsyncImage(
                         model = avatarImageUrl,
                         contentDescription = avatarItem?.displayName ?: profile.name,
                         modifier = Modifier.size(100.dp).clip(CircleShape),
                         contentScale = ContentScale.Crop,
+                        onState = { state ->
+                            if (state is AsyncImagePainter.State.Error) avatarLoadFailed = true
+                        },
                     )
                 } else if (profile.name.isNotBlank()) {
                     Text(

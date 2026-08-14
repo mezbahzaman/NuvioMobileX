@@ -71,6 +71,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.isIos
@@ -610,6 +611,9 @@ private fun PopupProfileBubble(
     val avatarImageUrl = remember(profile.avatarUrl, avatarItem) {
         profileAvatarImageUrl(profile, avatarItem)
     }
+    // A URL that does not load must fall back to the initials. Without this the else-branch below
+    // only fires when there is no URL at all, so a broken link renders as an empty coloured circle.
+    var avatarLoadFailed by remember(avatarImageUrl) { mutableStateOf(false) }
 
     // Per-item entrance animation
     val itemAlpha = remember { Animatable(0f) }
@@ -693,12 +697,15 @@ private fun PopupProfileBubble(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                if (avatarImageUrl != null) {
+                if (avatarImageUrl != null && !avatarLoadFailed) {
                     AsyncImage(
                         model = avatarImageUrl,
                         contentDescription = profile.name,
                         modifier = Modifier.size(48.dp).clip(tokens.shapes.avatar),
                         contentScale = ContentScale.Crop,
+                        onState = { state ->
+                            if (state is AsyncImagePainter.State.Error) avatarLoadFailed = true
+                        },
                     )
                 } else if (profile.name.isNotBlank()) {
                     Text(
@@ -988,6 +995,9 @@ fun ActiveProfileMiniAvatar(
     val avatarImageUrl = remember(profile.avatarUrl, avatarItem) {
         profileAvatarImageUrl(profile, avatarItem)
     }
+    // A URL that does not load must fall back to the initials. Without this the else-branch below
+    // only fires when there is no URL at all, so a broken link renders as an empty coloured circle.
+    var avatarLoadFailed by remember(avatarImageUrl) { mutableStateOf(false) }
 
     val borderColor = if (selected) {
         tokens.colors.borderSelected
@@ -1009,12 +1019,15 @@ fun ActiveProfileMiniAvatar(
             .border(tokens.borders.thin + NuvioTokens.Space.hairline, borderColor, tokens.shapes.avatar),
         contentAlignment = Alignment.Center,
     ) {
-        if (avatarImageUrl != null) {
+        if (avatarImageUrl != null && !avatarLoadFailed) {
             AsyncImage(
                 model = avatarImageUrl,
                 contentDescription = profile.name,
                 modifier = Modifier.size(size.dp).clip(tokens.shapes.avatar),
                 contentScale = ContentScale.Crop,
+                onState = { state ->
+                    if (state is AsyncImagePainter.State.Error) avatarLoadFailed = true
+                },
             )
         } else if (profile.name.isNotBlank()) {
             Text(
