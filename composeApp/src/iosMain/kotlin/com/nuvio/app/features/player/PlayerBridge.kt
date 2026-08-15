@@ -98,6 +98,19 @@ interface NuvioPlayerBridge {
     fun getVideoFrameTicks(): Long
 
     /**
+     * mpv's VO-level counters, packed into one call because every method here is a
+     * hand-mirrored Swift signature Gradle cannot check — the [getVideoFrameTicks] precedent.
+     * `estimated-vf-fps` (which feeds the ticks) measures the filter chain, i.e. decoding;
+     * mpv has no true presented-frames property, so these are the closest VO-level signals
+     * to "the picture reached the screen".
+     *
+     * High 32 bits: `frame-drop-count` (frames the VO dropped). Low 32 bits:
+     * `vo-delayed-frame-count` (mpv's delayed-vsync estimate). Both clamped non-negative on
+     * the Swift side, so the packed value is never negative.
+     */
+    fun getVoFrameStats(): Long
+
+    /**
      * Stream facts for the info overlay, as one JSON object matching
      * `PlayerStreamInfoPayload`. A single call rather than a getter per field: this bridge
      * is hand-mirrored in Swift and Gradle only compiles the Kotlin side, so every extra
