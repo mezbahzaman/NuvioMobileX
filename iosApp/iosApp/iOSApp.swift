@@ -93,6 +93,34 @@ private final class PostHogConsentObserver {
     }
 }
 
+/// Feeds the OS's real-time memory-pressure events into the shared Kotlin memory tier
+/// (`AppMemory`): warning/critical escalate (and trim every registered cache), normal
+/// relaxes. This is the dynamic half of the iOS probe — the static half is
+/// ProcessInfo.physicalMemory read Kotlin-side. os_proc_available_memory() needs a
+/// cinterop the shared framework doesn't have, so the event source lives here in Swift.
+private final class MemoryPressureObserver {
+    static let shared = MemoryPressureObserver()
+    private var source: DispatchSourceMemoryPressure?
+
+    func start() {
+        guard source == nil else { return }
+        let source = DispatchSource.makeMemoryPressureSource(
+            eventMask: [.normal, .warning, .critical],
+            queue: .main
+        )
+        source.setEventHandler {
+            let event = source.data
+            if !event.intersection([.warning, .critical]).isEmpty {
+                AppMemory.shared.onPressure()
+            } else if event.contains(.normal) {
+                AppMemory.shared.onRelax()
+            }
+        }
+        source.activate()
+        self.source = source
+    }
+}
+
 @main
 struct iOSApp: App {
     @UIApplicationDelegateAdaptor(OrientationLockAppDelegate.self) private var appDelegate
@@ -141,6 +169,9 @@ struct iOSApp: App {
             PostHogSDK.shared.optOut()
         }
         PostHogConsentObserver.shared.start()
+        // Registered next to the AnalyticsSink bridge, before shared code can allocate:
+        // pressure events trim the Kotlin-side budget registry from the very first screen.
+        MemoryPressureObserver.shared.start()
 
         if #available(iOS 14.0, *) {
             // MetricKit supplies delayed hangs and resource failures that exception
