@@ -196,6 +196,17 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
         guard let vc = playerVC, vc.hasVideoTrack else { return -1 }
         return vc.videoFrameTicks
     }
+
+    /// mpv's VO-level counters packed into one call, because every bridge method is a
+    /// hand-mirrored Swift signature Gradle cannot check (the getVideoFrameTicks precedent).
+    /// High 32 bits: `frame-drop-count`; low 32 bits: `vo-delayed-frame-count`; both clamped
+    /// so the packed value is never negative. See NuvioPlayerBridge.getVoFrameStats.
+    func getVoFrameStats() -> Int64 {
+        guard let vc = playerVC else { return 0 }
+        let dropped = min(max(vc.voDroppedFrames, 0), Int64(Int32.max))
+        let delayed = min(max(vc.voDelayedFrames, 0), Int64(UInt32.max))
+        return (dropped << 32) | delayed
+    }
     func getErrorMessage() -> String { playerVC?.currentErrorMessage ?? "" }
     func getStreamInfoJson() -> String { playerVC?.streamInfoJson() ?? "" }
 
@@ -294,6 +305,12 @@ final class MPVPlayerViewController: UIViewController {
     /// increments, so any change means the picture moved since the last sample.
     var videoFrameTicks: Int64 = 0
     var hasVideoTrack: Bool = false
+
+    /// mpv's VO-level counters. `estimated-vf-fps` above proves decoding, not presentation;
+    /// these are the closest mpv has to "the picture reached the screen" (there is no true
+    /// presented-frames property). Snapshot diagnostics only for now.
+    var voDroppedFrames: Int64 = 0
+    var voDelayedFrames: Int64 = 0
     var currentErrorMessage: String {
         errorStateLock.lock()
         defer { errorStateLock.unlock() }
@@ -925,6 +942,9 @@ final class MPVPlayerViewController: UIViewController {
         // other field here looking healthy. `estimated-vf-fps` is the one signal that stops too.
         hasVideoTrack = !(getString("video-format") ?? "").isEmpty
         if getDouble("estimated-vf-fps") > 0 { videoFrameTicks &+= 1 }
+        // VO-level counters for the playback snapshot; see the property declarations.
+        voDroppedFrames = Int64(getInt("frame-drop-count"))
+        voDelayedFrames = Int64(getInt("vo-delayed-frame-count"))
 
         let shouldPublishNowPlayingState = !isPlayerLoading || isPlayerPlaying || durationMs > 0 || positionMs > 0
         if shouldPublishNowPlayingState {

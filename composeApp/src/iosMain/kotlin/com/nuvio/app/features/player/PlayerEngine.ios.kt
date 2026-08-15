@@ -329,6 +329,8 @@ actual fun PlatformPlayerSurface(
         while (isActive) {
             // -1 means the track carries no picture; see NuvioPlayerBridge.getVideoFrameTicks.
             val videoTicks = bridge.getVideoFrameTicks()
+            // Packed 32/32; see NuvioPlayerBridge.getVoFrameStats.
+            val voFrameStats = bridge.getVoFrameStats()
             val snapshot = PlayerPlaybackSnapshot(
                 isLoading = bridge.getIsLoading(),
                 isPlaying = bridge.getIsPlaying(),
@@ -339,6 +341,8 @@ actual fun PlatformPlayerSurface(
                 playbackSpeed = bridge.getPlaybackSpeed(),
                 videoProgressTicks = videoTicks.coerceAtLeast(0L),
                 hasVideoTrack = videoTicks >= 0L,
+                voDroppedFrameCount = voFrameStats ushr 32,
+                voDelayedFrameCount = voFrameStats and 0xFFFF_FFFFL,
             )
             latestOnSnapshot.value(snapshot)
             val errorMessage = bridge.getErrorMessage().ifBlank { null }
