@@ -278,7 +278,9 @@ class SimklAnimeWatchedResolutionTest {
     // Upstream rot: also fails on pristine origin/cmp-rewrite (3ba9cfd4) — the anime-id
     // resolution drops the MAL id / anime kind. Not a fork regression; re-enable when
     // upstream fixes SimklProjections.
-    @Ignore("Upstream bug: anime ids are dropped; fails on cmp-rewrite as well")
+    // Upstream bug: anime ids are dropped; fails on cmp-rewrite as well.
+    // (kotlin.test @Ignore takes no message on Kotlin/Native.)
+    @Ignore
     @Test
     fun `resolveAnimeEpisodeForSimkl returns unchanged for IMDB videoId prefix`() {
         val reference = TrackingMediaReference(
@@ -302,7 +304,9 @@ class SimklAnimeWatchedResolutionTest {
     // Upstream rot: also fails on pristine origin/cmp-rewrite (3ba9cfd4) — the anime-id
     // resolution drops the MAL id / anime kind. Not a fork regression; re-enable when
     // upstream fixes SimklProjections.
-    @Ignore("Upstream bug: anime ids are dropped; fails on cmp-rewrite as well")
+    // Upstream bug: anime ids are dropped; fails on cmp-rewrite as well.
+    // (kotlin.test @Ignore takes no message on Kotlin/Native.)
+    @Ignore
     @Test
     fun `resolveAnimeEpisodeForSimkl returns unchanged without catalog videoId`() {
         val reference = TrackingMediaReference(
@@ -443,7 +447,9 @@ class SimklAnimeWatchedResolutionTest {
     // Upstream rot: also fails on pristine origin/cmp-rewrite (3ba9cfd4) — the anime-id
     // resolution drops the MAL id / anime kind. Not a fork regression; re-enable when
     // upstream fixes SimklProjections.
-    @Ignore("Upstream bug: anime ids are dropped; fails on cmp-rewrite as well")
+    // Upstream bug: anime ids are dropped; fails on cmp-rewrite as well.
+    // (kotlin.test @Ignore takes no message on Kotlin/Native.)
+    @Ignore
     @Test
     fun `library projection uses anime type for anime entries`() {
         val entry = animeEntry(simklId = 39687, imdb = "tt2560140", mal = 16498)
