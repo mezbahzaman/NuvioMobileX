@@ -409,6 +409,12 @@ private fun ExoPlayerSurface(
         val bufferForPlaybackAfterRebufferMs = 5_000
         val loadControl = DefaultLoadControl.Builder()
             .setTargetBufferBytes(playerTargetBufferBytes(context))
+            // Pinned to media3 1.8.0's default, because the heap/4 byte cap above only bounds
+            // memory while it holds: shouldContinueLoading keeps loading below minBufferMs
+            // whenever `prioritizeTimeOverSizeThresholds || !targetBufferSizeReached`, so
+            // flipping this to true would let a high-bitrate stream buffer straight past the
+            // cap that field OOMs forced us onto.
+            .setPrioritizeTimeOverSizeThresholds(false)
             .setBufferDurationsMs(
                 minBufferMs,
                 maxBufferMs,
@@ -1430,6 +1436,12 @@ private class NuvioLibmpvView(
      */
     @Volatile private var obsVideoFrameTicks = 0L
 
+    // VO-level counters, straight from mpv. `estimated-vf-fps` above proves decoding, not
+    // presentation; these are the closest signals mpv has to "the picture reached the screen"
+    // (no true presented-frames property exists). Snapshot diagnostics only for now.
+    @Volatile private var obsVoDroppedFrames = 0L
+    @Volatile private var obsVoDelayedFrames = 0L
+
     private val propertyShadow = object : MPV.EventObserver {
         override fun eventProperty(property: String) {
             // MPV_FORMAT_NONE: property became unavailable — fall back to the same
@@ -1453,11 +1465,18 @@ private class NuvioLibmpvView(
                 // a rendered frame, so zeroing it when the property goes unavailable would read
                 // as the picture coming back. loadSource rebases it instead.
                 "estimated-vf-fps" -> Unit
+                // Unavailable means no active VO — the same 0 a fresh core reports.
+                "frame-drop-count" -> obsVoDroppedFrames = 0L
+                "vo-delayed-frame-count" -> obsVoDelayedFrames = 0L
             }
         }
 
         override fun eventProperty(property: String, value: Long) {
-            if (property == "cache-buffering-state") obsCacheBufferingState = value.toInt()
+            when (property) {
+                "cache-buffering-state" -> obsCacheBufferingState = value.toInt()
+                "frame-drop-count" -> obsVoDroppedFrames = value
+                "vo-delayed-frame-count" -> obsVoDelayedFrames = value
+            }
         }
 
         override fun eventProperty(property: String, value: Boolean) {
@@ -1614,6 +1633,10 @@ private class NuvioLibmpvView(
             // Fires roughly per frame, like time-pos above; the shadow handler is a volatile
             // increment, so the cost is comparable to what this observer already carries.
             "estimated-vf-fps" to MPV.mpvFormat.MPV_FORMAT_DOUBLE,
+            // VO-level counters: change only when a frame is dropped or a vsync runs long, so
+            // they are near-silent during healthy playback.
+            "frame-drop-count" to MPV.mpvFormat.MPV_FORMAT_INT64,
+            "vo-delayed-frame-count" to MPV.mpvFormat.MPV_FORMAT_INT64,
         )
         props.forEach { (name, format) -> mpv.observeProperty(name, format) }
     }
@@ -1705,6 +1728,8 @@ private class NuvioLibmpvView(
             // video-params is present exactly when a video track is decoding, and it is already
             // in the shadow — so "has a picture" costs nothing extra and stays off the main thread.
             hasVideoTrack = obsVideoParams != null,
+            voDroppedFrameCount = obsVoDroppedFrames,
+            voDelayedFrameCount = obsVoDelayedFrames,
             // ponytail: videoWidth/videoHeight left at their 0 defaults. Upstream read them via
             // mpv.getPropertyInt here, but snapshot() runs on the main thread and must stay mpv-free
             // (the ANR fix). To restore PiP aspect ratio, observe video-params/dw,dh in the property
