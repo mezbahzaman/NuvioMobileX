@@ -73,6 +73,13 @@ class MainActivity : AppCompatActivity() {
                 scrim = 0xFF020404.toInt(),
             ),
         )
+        // TEMPORARY field diagnosis (S24 "posters don't load after a switch", 2026-08-16).
+        // Debug builds only — applicationInfo.FLAG_DEBUGGABLE, not BuildConfig.DEBUG, because the
+        // TV codebase has been bitten by a debug variant that sets isDebuggable=false. Remove with
+        // HubTrace once the question is answered.
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            com.nuvio.app.core.diag.HubTrace.start(System.currentTimeMillis())
+        }
         ThemeSettingsStorage.initialize(applicationContext)
         SentrySettingsStorage.initialize(applicationContext)
         SentryInitializer.start(application)

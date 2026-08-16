@@ -510,6 +510,8 @@ internal class StalkerSession(
         // permit, it is answering a screen nobody is on — drop it instead of spending the
         // throttled host's budget on it (see StalkerPlaybackTraffic.browseEpoch).
         val enqueueEpoch = StalkerPlaybackTraffic.browseEpoch
+        val tEnq = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()
+        com.nuvio.app.core.diag.HubTrace.log("stalker", "enqueue") { "action=$action" }
         awaitPlaybackTraffic(action)
         val query = (params + ("JsHttpRequest" to "1-xml")).entries.joinToString("&") { (k, v) ->
             "${k.encodeURLParameter()}=${v.encodeURLParameter()}"
@@ -541,6 +543,7 @@ internal class StalkerSession(
         // type, and worded to read as a connection-level failure) propagates without re-auth.
         val body = panelGuard.guardedPanelRequest(url, discovery) {
             gate.withPermit {
+                com.nuvio.app.core.diag.HubTrace.log("stalker", "gotPermit") { "action=$action waited=${com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - tEnq}ms" }
                 // Checked with the permit in hand — the whole wait is the window a switch can
                 // land in. Thrown INSIDE the guard so the breaker ignores it (an abandoned call
                 // is not a panel failure); callers treat it like any transport failure.
@@ -552,7 +555,9 @@ internal class StalkerSession(
                 ) {
                     throw StalkerBrowseAbandonedException()
                 }
-                httpGet(url, headers)
+                val body0 = httpGet(url, headers)
+                com.nuvio.app.core.diag.HubTrace.log("stalker", "done") { "action=$action total=${com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - tEnq}ms bytes=${body0.length}" }
+                body0
             }
         }
         // A portal that rejects the STB identity replies HTTP 200 with the plain text "Authorization

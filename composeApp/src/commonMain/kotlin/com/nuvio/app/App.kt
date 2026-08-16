@@ -480,6 +480,38 @@ fun App(
             .components {
                 add(SvgDecoder.Factory())
             }
+            // TEMPORARY field diagnosis (HubTrace): is a poster request even ISSUED, does it hit
+            // the memory/disk cache, how long does the network leg take, and does it fail? No-op
+            // unless HubTrace.enabled (debug builds only).
+            .eventListener(object : coil3.EventListener() {
+                private val startedAt = mutableMapOf<String, Long>()
+                private fun key(request: coil3.request.ImageRequest) = request.data.toString().takeLast(60)
+                override fun onStart(request: coil3.request.ImageRequest) {
+                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
+                    startedAt[key(request)] = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()
+                    com.nuvio.app.core.diag.HubTrace.log("image", "start") { key(request) }
+                }
+                override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
+                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
+                    val k = key(request)
+                    val t0 = startedAt.remove(k)
+                    com.nuvio.app.core.diag.HubTrace.log("image", "success") {
+                        "src=${result.dataSource} took=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms $k"
+                    }
+                }
+                override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
+                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
+                    val k = key(request)
+                    val t0 = startedAt.remove(k)
+                    com.nuvio.app.core.diag.HubTrace.log("image", "ERROR") {
+                        "after=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms err=${result.throwable::class.simpleName}: ${result.throwable.message?.take(120)} $k"
+                    }
+                }
+                override fun onCancel(request: coil3.request.ImageRequest) {
+                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
+                    com.nuvio.app.core.diag.HubTrace.log("image", "cancel") { key(request) }
+                }
+            })
             .configurePlatformImageLoader(context)
             .build()
     }
