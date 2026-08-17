@@ -894,7 +894,9 @@ private fun MainAppContent(
             val screenName = when (currentRoute) {
                 null -> null
                 TabsRoute -> "Tabs.${selectedTab.name}"
-                else -> currentRoute::class.simpleName
+                // NOT ::class.simpleName — R8 rewrites it, which is why every non-tab mobile crash
+                // reported an unattributable `p21`/`ov4`/`lx4`. See analyticsNameOf.
+                else -> analyticsNameOf(currentRoute)
             }
             screenName?.let(Breadcrumbs::screenChanged)
         }
