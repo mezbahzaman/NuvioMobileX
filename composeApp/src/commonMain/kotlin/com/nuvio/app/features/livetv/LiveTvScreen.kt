@@ -889,6 +889,7 @@ private fun LivePlayerSurface(
             // it, which every live-only behaviour reads.
             streamType = "live",
             isCatchUpPlayback = isCatchUpPlayback,
+            playbackSurface = com.nuvio.app.features.player.LIVE_FREEZE_SURFACE_DOCKED,
             modifier = Modifier.fillMaxSize(),
             playWhenReady = true,
             resizeMode = PlayerResizeMode.Fit,

@@ -91,6 +91,16 @@ expect fun PlatformPlayerSurface(
      * `live && !isCatchUpPlayback` — see CatchUpPlayback.
      */
     isCatchUpPlayback: Boolean = false,
+    /**
+     * Which screen is hosting this surface — one of [LIVE_FREEZE_SURFACE_DOCKED] /
+     * [LIVE_FREEZE_SURFACE_PLAYER], the same vocabulary freeze reporting already uses.
+     *
+     * The engine cannot infer it: the docked Live TV screen and the fullscreen player hand over
+     * identical sources. [LiveVideoOutputPolicy] needs the distinction because the docked screen can
+     * safely use a renderer that draws no OSD and ignores panscan, and the fullscreen player cannot.
+     * Null means "unknown host", which every policy here treats as the conservative branch.
+     */
+    playbackSurface: String? = null,
     useYoutubeChunkedPlayback: Boolean = false,
     modifier: Modifier = Modifier,
     playWhenReady: Boolean = true,
