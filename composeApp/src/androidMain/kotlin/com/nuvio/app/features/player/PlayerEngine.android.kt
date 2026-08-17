@@ -125,6 +125,7 @@ actual fun PlatformPlayerSurface(
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
     isCatchUpPlayback: Boolean,
+    playbackSurface: String?,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -150,14 +151,23 @@ actual fun PlatformPlayerSurface(
         useYoutubeChunkedPlayback,
         initialPositionRequestKey.orEmpty(),
     )
-    // Live IPTV is raw continuous MPEG-TS, which ExoPlayer can't sustain (buffers forever) —
-    // force libmpv regardless of the user's engine setting. VOD/series keep their choice.
-    val forceLibmpvForLive = normalizeStreamType(streamType) == "live"
+    // Live no longer force-selects libmpv. The old reason ("raw continuous MPEG-TS, which ExoPlayer
+    // can't sustain — buffers forever") is handled now that the extractor sets
+    // FLAG_DETECT_ACCESS_UNITS | FLAG_ALLOW_NON_IDR_KEYFRAMES (see LIVE_TS_EXTRACTOR_FLAGS); the
+    // premise was never actually tested, because those flags had never been set on mobile.
+    //
+    // Forcing libmpv dragged every live stream through libplacebo — one leaked sync-file fd per
+    // rendered frame, measured at ~25/sec on a Galaxy S24 Ultra, EMFILE at 32768 in ~22 minutes —
+    // and through a flat 96MB mpv demuxer cache gated on API level rather than device memory, which
+    // is a large slice of a budget phone. ExoPlayer's buffer is already memory-tier aware
+    // (playerTargetBufferBytes), so live inherits correct sizing for free.
+    //
+    // NuvioTV made this same migration already. Live now respects the engine setting
+    // (Auto -> ExoPlayer); the startup failover below still switches a stream to libmpv if it
+    // genuinely cannot sustain on ExoPlayer.
+    // ponytail: if a codec class regresses on ExoPlayer, narrow the force back BY CODEC, not by "live".
     var activeEngine by remember(playerSourceKey, playerSettings.androidPlaybackEngine) {
-        mutableStateOf(
-            if (forceLibmpvForLive) ResolvedAndroidPlaybackEngine.Libmpv
-            else playerSettings.androidPlaybackEngine.initialAndroidEngine()
-        )
+        mutableStateOf(playerSettings.androidPlaybackEngine.initialAndroidEngine())
     }
 
     when (activeEngine) {
@@ -218,7 +228,15 @@ actual fun PlatformPlayerSurface(
                 modifier = modifier,
                 playWhenReady = playWhenReady,
                 resizeMode = resizeMode,
-                videoOutput = playerSettings.androidLibmpvVideoOutput,
+                // Routed through the policy rather than read raw. Currently a pass-through (the
+                // renderer is fixed by the `gpu` default in PlayerSettingsRepository), but the
+                // decision belongs in one place. See LiveVideoOutputPolicy.
+                videoOutput = LiveVideoOutputPolicy.videoOutputFor(
+                    isLive = normalizeStreamType(streamType) == "live",
+                    isCatchUpPlayback = isCatchUpPlayback,
+                    surface = playbackSurface,
+                    userPreference = playerSettings.androidLibmpvVideoOutput.mpvValue,
+                ),
                 hardwareDecodingEnabled = playerSettings.androidLibmpvHardwareDecodingEnabled,
                 yuv420pEnabled = playerSettings.androidLibmpvYuv420pEnabled,
                 onControllerReady = onControllerReady,
@@ -339,7 +357,7 @@ private fun ExoPlayerSurface(
 
     val extractorsFactory = remember {
         DefaultExtractorsFactory()
-            .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS)
+            .setTsExtractorFlags(LIVE_TS_EXTRACTOR_FLAGS)
             .setTsExtractorTimestampSearchBytes(1500 * TsExtractor.TS_PACKET_SIZE)
     }
     val dataSourceFactory = remember(
@@ -997,7 +1015,8 @@ private fun LibmpvPlayerSurface(
     modifier: Modifier,
     playWhenReady: Boolean,
     resizeMode: PlayerResizeMode,
-    videoOutput: AndroidLibmpvVideoOutput,
+    /** Already resolved by [LiveVideoOutputPolicy] — may be a comma-separated mpv fallback chain. */
+    videoOutput: String,
     hardwareDecodingEnabled: Boolean,
     yuv420pEnabled: Boolean,
     onControllerReady: (PlayerEngineController) -> Unit,
@@ -1229,7 +1248,7 @@ private tailrec fun Context.findActivity(): Activity? =
 
 private class NuvioLibmpvView(
     context: Context,
-    private val videoOutput: AndroidLibmpvVideoOutput,
+    private val videoOutput: String,
     private val hardwareDecodingEnabled: Boolean,
     private val yuv420pEnabled: Boolean,
     attrs: AttributeSet? = null,
@@ -1574,7 +1593,12 @@ private class NuvioLibmpvView(
         mpv.attachSurface(surface)
         attachedSurface = surface
         mpv.setOptionString("force-window", "yes")
-        mpv.setPropertyString("vo", videoOutput.mpvValue)
+        mpv.setPropertyString("vo", videoOutput)
+        // Logged because [videoOutput] may now be a comma-separated fallback chain
+        // (LiveVideoOutputPolicy.DIRECT_SURFACE_VO). setPropertyString returns Unit, so a libmpv
+        // build that refused a list here would black-screen with nothing saying why; this line is
+        // what makes the applied chain visible in logcat when that has to be diagnosed.
+        Log.i(TAG, "mpv vo applied: '$videoOutput'")
         recordMpvStage("surface_attached")
     }
 
@@ -1587,9 +1611,16 @@ private class NuvioLibmpvView(
     }
 
     override fun initOptions() {
-        setVo(videoOutput.mpvValue)
+        setVo(videoOutput)
         mpv.setOptionString("profile", "fast")
         mpv.setOptionString("hwdec", if (hardwareDecodingEnabled) "auto" else "no")
+        // mediacodec_embed presents MediaCodec output straight to the Surface, so it draws no OSD
+        // and no libass. Left on mpv's default `sid=auto`, an embedded DVB/teletext track in an
+        // MPEG-TS live stream would be selected and then silently never appear. The docked screen
+        // has no subtitle UI to turn it off with, so say so explicitly.
+        LiveVideoOutputPolicy.subtitleSelectionFor(videoOutput)?.let { sid ->
+            mpv.setOptionString("sid", sid)
+        }
         if (yuv420pEnabled) {
             mpv.setOptionString("vf", "format=yuv420p")
         }
@@ -1610,8 +1641,10 @@ private class NuvioLibmpvView(
         )
         mpv.setOptionString("tls-verify", "yes")
         mpv.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
-        mpv.setOptionString("demuxer-max-bytes", "${libmpvCacheBytes()}").logIfMpvError("demuxer-max-bytes")
-        mpv.setOptionString("demuxer-max-back-bytes", "${libmpvCacheBytes() / 2}").logIfMpvError("demuxer-max-back-bytes")
+        val demuxerBytes = demuxerBytesFor(AndroidMemoryTierProbe.tier(context))
+        mpv.setOptionString("demuxer-max-bytes", "${demuxerBytes.maxBytes}").logIfMpvError("demuxer-max-bytes")
+        mpv.setOptionString("demuxer-max-back-bytes", "${demuxerBytes.maxBackBytes}").logIfMpvError("demuxer-max-back-bytes")
+        Log.i(TAG, "mpv demuxer budget: fwd=${demuxerBytes.maxBytes} back=${demuxerBytes.maxBackBytes}")
         mpv.setOptionString("vd-lavc-film-grain", "cpu")
         mpv.setPropertyBoolean("keep-open", true)
         mpv.setPropertyBoolean("input-default-bindings", true)
@@ -1987,8 +2020,54 @@ private data class LibmpvTrack(
     val isForced: Boolean,
 )
 
-private fun libmpvCacheBytes(): Int =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 64 * 1024 * 1024 else 32 * 1024 * 1024
+/**
+ * TS extractor flags for IPTV streams, including raw live MPEG-TS.
+ *
+ * IPTV live `.ts` streams frequently lack Access Unit Delimiters and IDR keyframes at the join
+ * point — you connect mid-GOP, because the stream has been running for hours. Left to its defaults
+ * ExoPlayer waits for a keyframe that never arrives and buffers forever without reaching READY.
+ * That symptom is the entire reason mobile used to force libmpv for live, and forcing libmpv is
+ * what dragged live through libplacebo (one leaked sync-file fd per frame, EMFILE in ~22 minutes)
+ * and a flat 96MB mpv demuxer cache sized on API level rather than device memory.
+ *
+ * [DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS] tells the extractor to find frame
+ * boundaries itself; [DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES] lets it start on
+ * a non-IDR frame. NuvioTV sets exactly these two and dropped its own live force-libmpv as a
+ * result; StreamVault (media3-only, no mpv at all) sets them plus MODE_SINGLE_PMT.
+ *
+ * The pre-existing HDMV DTS flag is retained — some providers' audio depends on it.
+ * Pinned by LiveTsExtractorFlagsTest, because removing a flag here breaks live SILENTLY: no crash,
+ * no error, just an infinite spinner.
+ */
+internal const val LIVE_TS_EXTRACTOR_FLAGS: Int =
+    DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
+        DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
+        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
+
+/** Demuxer cache budget: the forward window plus the seek-back window, in bytes. */
+internal data class MpvDemuxerBytes(val maxBytes: Long, val maxBackBytes: Long)
+
+/**
+ * mpv demuxer cache per memory tier. Pure so the numbers are testable.
+ *
+ * Replaces an API-level gate inherited from mpv-android (64MiB ≥ O_MR1, else 32) that gave a
+ * 2GB phone the same 96MiB native allocation as an S24 Ultra. Tier subsumes the API gate:
+ * pre-27 hardware is LOW-tier hardware. Same locked numbers as NuvioTV's `demuxerBytesFor`;
+ * MID/HIGH keep the field-proven 64+32MiB split. The back buffer is the first thing cut
+ * because mpv fills it to its cap on network streams ("it will simply use as much memory
+ * this option allows" — options.rst, v0.41.0) and docked live never seeks into it — rewind
+ * is catch-up, a separate stream. Research: research/mpv-demuxer-cache-tiering.md.
+ */
+internal fun demuxerBytesFor(tier: MemoryTier): MpvDemuxerBytes = when (tier) {
+    MemoryTier.LOW -> MpvDemuxerBytes(
+        maxBytes = 48L * 1024L * 1024L,
+        maxBackBytes = 16L * 1024L * 1024L,
+    )
+    MemoryTier.MID, MemoryTier.HIGH -> MpvDemuxerBytes(
+        maxBytes = 64L * 1024L * 1024L,
+        maxBackBytes = 32L * 1024L * 1024L,
+    )
+}
 
 /**
  * ExoPlayer's media buffer is plain byte[] on the Java heap. A flat 100MB target was ~40% of

@@ -52,7 +52,35 @@ data class PlayerSettingsUiState(
     val streamReuseLastLinkEnabled: Boolean = false,
     val streamReuseLastLinkCacheHours: Int = 24,
     val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.Auto,
-    val androidLibmpvVideoOutput: AndroidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext,
+    /**
+     * `gpu`, NOT `gpu-next`, until our libmpv bundles libplacebo >= v7.360.1.
+     *
+     * `gpu-next` is libplacebo, and the libplacebo we ship (**v7.360.0**, read out of the shipped
+     * `libmpv.so`) has a per-frame file-descriptor leak on its OpenGL backend: `gl_poll_callbacks()`
+     * in `opengl/util` creates a GL sync object per frame and never calls `gl->DeleteSync`. On
+     * Android every GL sync object is backed by a `sync_file` fd, so the process leaks one
+     * descriptor per rendered frame and dies on EMFILE at the 32768 ceiling.
+     *
+     * Measured on a Galaxy S24 Ultra (2026-08-16): **~25 fences/second on a 25 fps channel** —
+     * the leak rate is the frame rate — with `anon_inode:sync_file` at 93% of all open descriptors
+     * and dma-buf flat. That is ~22 minutes of continuous playback to a crash, ~9 at 60 fps, and it
+     * matches the whole `native_crash` cohort in telemetry.
+     *
+     * Upstream fixed it in **libplacebo v7.360.1** — one patch release ahead of ours — in a commit
+     * that explicitly closes mpv-android#977 (gpu-next + gpu-api=opengl failing after 10-12 min on
+     * Android) and mpv#12708 (GL_OUT_OF_MEMORY on Android, Qualcomm GPUs). Every device in our
+     * crash table is a Qualcomm Android phone.
+     *
+     * `gpu` is mpv's own GL renderer and does not go through libplacebo at all, which is why
+     * NuvioTV — which has always used `gpu` — shows healthy fence counts (3-35) in the same
+     * telemetry window while mobile hits 32,000. It is a full-featured renderer already shipped as
+     * a user-selectable option, so this costs some of gpu-next's higher-quality processing and
+     * nothing else. A user who has explicitly chosen gpu-next keeps it: this only moves the DEFAULT.
+     *
+     * Revert to [AndroidLibmpvVideoOutput.GpuNext] once libmpv is rebuilt with libplacebo
+     * >= v7.360.1, and confirm with the fd census in research/mpv-fence-fd-leak.md.
+     */
+    val androidLibmpvVideoOutput: AndroidLibmpvVideoOutput = AndroidLibmpvVideoOutput.Gpu,
     val androidLibmpvHardwareDecodingEnabled: Boolean = true,
     val androidLibmpvYuv420pEnabled: Boolean = false,
     val decoderPriority: Int = 1,
@@ -119,7 +147,9 @@ object PlayerSettingsRepository {
     private var streamReuseLastLinkEnabled = false
     private var streamReuseLastLinkCacheHours = 24
     private var androidPlaybackEngine = AndroidPlaybackEngine.Auto
-    private var androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
+    // gpu, not gpu-next — see the KDoc on the UI-state default: our libplacebo (v7.360.0) leaks
+    // one sync_file fd per frame on its OpenGL backend, fixed upstream in v7.360.1.
+    private var androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.Gpu
     private var androidLibmpvHardwareDecodingEnabled = true
     private var androidLibmpvYuv420pEnabled = false
     private var decoderPriority = 1
@@ -191,7 +221,7 @@ object PlayerSettingsRepository {
         streamReuseLastLinkEnabled = false
         streamReuseLastLinkCacheHours = 24
         androidPlaybackEngine = AndroidPlaybackEngine.Auto
-        androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
+        androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.Gpu
         androidLibmpvHardwareDecodingEnabled = true
         androidLibmpvYuv420pEnabled = false
         decoderPriority = 1
@@ -292,7 +322,9 @@ object PlayerSettingsRepository {
             ?: AndroidPlaybackEngine.Auto
         androidLibmpvVideoOutput = PlayerSettingsStorage.loadAndroidLibmpvVideoOutput()
             ?.let { runCatching { AndroidLibmpvVideoOutput.valueOf(it) }.getOrNull() }
-            ?: AndroidLibmpvVideoOutput.GpuNext
+            // An install with NOTHING stored takes gpu. A user who explicitly picked gpu-next
+            // keeps it — this only changes the default, never an expressed choice.
+            ?: AndroidLibmpvVideoOutput.Gpu
         androidLibmpvHardwareDecodingEnabled = PlayerSettingsStorage.loadAndroidLibmpvHardwareDecodingEnabled() ?: true
         androidLibmpvYuv420pEnabled = PlayerSettingsStorage.loadAndroidLibmpvYuv420pEnabled() ?: false
         decoderPriority = PlayerSettingsStorage.loadDecoderPriority() ?: 1

@@ -6,6 +6,10 @@ import androidx.sqlite.execSQL
 import com.nuvio.app.core.memory.AppMemory
 import com.nuvio.app.core.memory.MemoryTierPolicy
 import com.nuvio.app.features.trakt.TraktPlatformClock
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
@@ -126,7 +130,50 @@ internal object XtreamMatchIndex {
     private val mutex = Mutex()
     private var conn: SQLiteConnection? = null
 
+    private val _buildProgress = MutableStateFlow<Map<String, IndexBuildProgress>>(emptyMap())
+
+    /**
+     * Live per-provider index-build progress, for the "Preparing catalog…" status.
+     *
+     * Reported as a running COUNT, not a percentage, and that is deliberate. An account's build
+     * spans movies, series and live, and the streaming sync learns its row count only as the
+     * response parses — so any total would either be invented or would visibly reset three times.
+     * [IndexBuildProgress] can carry a total for callers that genuinely have one; this path does
+     * not pretend to.
+     */
+    internal val buildProgress: StateFlow<Map<String, IndexBuildProgress>> = _buildProgress.asStateFlow()
+
+    private fun advanceBuildProgress(provider: String, delta: Int) {
+        _buildProgress.update { current ->
+            val next = IndexBuildProgress((current[provider]?.itemsWritten ?: 0) + delta)
+            current + (provider to (current[provider]?.mergeWith(next) ?: next))
+        }
+    }
+
+    /** Called when an account's build finishes (or fails) so the status clears. */
+    internal fun clearBuildProgress(provider: String) {
+        _buildProgress.update { it - provider }
+    }
+
     private fun connection(): SQLiteConnection = conn ?: MatchDbDriver.openConnection().also {
+        // Stated, not inherited. Android 9+ turns on "compatibility WAL" by default unless an app
+        // opts in or out, so the journal mode here was whatever the platform decided — and
+        // `synchronous` defaults to FULL, meaning every COMMIT fsyncs. The interruptibility fix
+        // that moved transactions from chunked(5_000) to tier batches of 100/300/500 therefore
+        // multiplied the fsync count 10-50x on a 468k catalog (~94 commits became 937-4,684).
+        //
+        // NORMAL is safe here by design rather than by gamble: every table in this file is a
+        // rebuildable cache (the schema below drops and recreates on migration, and mappings
+        // re-pull from Supabase), so the worst case of a torn write is the rebuild that is already
+        // the recovery path. StreamVault sets its journal mode explicitly for the same reason.
+        runCatching {
+            // WAL needs only SQLite 3.7, so it is safe at minSdk 24 — and it genuinely helps there:
+            // Android's "compatibility WAL" default only arrived in Android 9, so API 24-27 were
+            // running a rollback journal. `:memory:` ignores this and stays "memory", hence
+            // runCatching rather than a version check.
+            it.prepare("PRAGMA journal_mode = WAL").use { st -> st.step() }
+            it.execSQL("PRAGMA synchronous = NORMAL")
+        }
         // schema v2 adds items.poster (search cards). index tables are rebuildable caches,
         // mappings re-pull from Supabase — so migration is drop+recreate.
         val version = it.prepare("PRAGMA user_version").use { st -> if (st.step()) st.getLong(0) else 0L }
@@ -580,6 +627,12 @@ internal object XtreamMatchIndex {
         val batch = MemoryTierPolicy.indexBatchSize(AppMemory.effectiveTier())
         for (chunk in items.chunked(batch)) {
             yield()
+            // Normalised OUTSIDE the lock and the transaction. TitleNormalizer.keysOf is the
+            // CPU-heavy half of indexing (4-8 Unicode NFD folds and dozens of regex passes per
+            // item); running it inside `mutex.withLock` made every reader — i.e. the UI — queue
+            // behind it. Sorted by (k, sid) because `keys` is WITHOUT ROWID, so its primary key IS
+            // the storage B-tree and catalog-order inserts land at random leaves. See sortedKeyRows.
+            val keyRows = sortedKeyRows(chunk)
             mutex.withLock {
                 val c = connection()
                 c.execSQL("BEGIN IMMEDIATE")
@@ -588,6 +641,14 @@ internal object XtreamMatchIndex {
                     // must survive an incoming null (B-style panels ship empty bulk icons; the
                     // stored value may be PosterEnricher's work). COALESCE keeps non-null incoming
                     // icons flowing. Same two-step shape as the TV twin.
+                    //
+                    // NOT rewritten as a single SQLite UPSERT, though it reads like the obvious
+                    // win: UPSERT needs SQLite >= 3.24, which arrives with Android 11 (API 30), and
+                    // minSdk here is 24. AndroidSQLiteDriver wraps the FRAMEWORK SQLite, so on an
+                    // API 24-29 device the statement fails to prepare at all. Unit tests cannot
+                    // catch it either — they run BundledSQLiteDriver, which is modern. The TV twin
+                    // carries the same warning ("Framework SQLite on the oldest supported TVs
+                    // predates UPSERT, hence two steps"); heed it before trying this again.
                     c.prepare("UPDATE items SET name=?, year=?, tmdb=?, ext=?, poster=COALESCE(?, poster), category_id=?, epg_id=?, tv_archive=?, pos=? WHERE provider=? AND kind=? AND sid=?").use { upd ->
                         c.prepare("SELECT changes()").use { chg ->
                             c.prepare("INSERT OR REPLACE INTO items(provider, kind, sid, name, year, tmdb, ext, poster, category_id, epg_id, tv_archive, pos) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").use { ins ->
@@ -625,12 +686,10 @@ internal object XtreamMatchIndex {
                         }
                     }
                     c.prepare("INSERT OR REPLACE INTO keys(provider, kind, k, sid) VALUES(?,?,?,?)").use { st ->
-                        for (it in chunk) {
-                            for (key in TitleNormalizer.keysOf(it.name)) {
-                                st.reset()
-                                st.bindText(1, provider); st.bindText(2, kind.slug); st.bindText(3, key); st.bindLong(4, it.sid.toLong())
-                                st.step()
-                            }
+                        for (row in keyRows) {
+                            st.reset()
+                            st.bindText(1, provider); st.bindText(2, kind.slug); st.bindText(3, row.key); st.bindLong(4, row.sid.toLong())
+                            st.step()
                         }
                     }
                     c.execSQL("COMMIT")
@@ -638,6 +697,9 @@ internal object XtreamMatchIndex {
                     c.execSQL("ROLLBACK"); throw t
                 }
             }
+            // After the batch is durable, so the number on screen never runs ahead of what
+            // survives a kill mid-build.
+            advanceBuildProgress(provider, chunk.size)
         }
     }
 

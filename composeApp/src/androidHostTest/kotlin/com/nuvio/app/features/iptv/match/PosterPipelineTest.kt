@@ -29,6 +29,11 @@ class PosterPipelineTest {
     fun setUpDb() {
         MatchDbDriver.openForTests =
             { androidx.sqlite.driver.bundled.BundledSQLiteDriver().open(":memory:") }
+        // PosterEnricher is a process-global singleton: its `attempted` set and `transportFailures`
+        // counter survive between tests by design (one ask per item per PROCESS, and 3 failures
+        // pause the drain for 60 s). Without this reset the suite is order-dependent — the retry
+        // test below waits out a pause it did not cause and times out.
+        PosterEnricher.resetForTests()
     }
 
     @AfterTest
@@ -268,11 +273,20 @@ class PosterPipelineTest {
 
         PosterEnricher.enqueue(acc, MatchKind.MOVIE, listOf(401))
         await("the failing ask") { asked.count { it == "get_vod_info:401" } == 1 }
-        // A transport failure must not read as "panel has no art" — the next window retries.
-        PosterEnricher.enqueue(acc, MatchKind.MOVIE, listOf(401))
+        // A transport failure must not read as "panel has no art" — a later window serve retries.
+        // The re-serve lives INSIDE the poll loop because the un-mark is asynchronous: `asked`
+        // records the SERVER side of the request, while the enricher un-marks the item only after
+        // the transport call returns and is classified — so a single immediate re-enqueue can land
+        // while the item is still marked in-flight and be (correctly) dropped. Production windows
+        // re-serve on every row compose/loadMore, which is exactly what this loop mimics. Were a
+        // transport failure burned permanently, no number of re-enqueues would re-ask and this
+        // still times out — the regression stays red on the old behaviour.
         await("retry writes through") {
+            PosterEnricher.enqueue(acc, MatchKind.MOVIE, listOf(401))
             runBlocking { XtreamMatchIndex.item(acc.id, MatchKind.MOVIE, 401)?.poster != null }
         }
+        // Exactly two: the failed ask plus one successful retry. The in-flight mark dedupes the
+        // loop's extra enqueues, and success marks the item permanently.
         assertEquals(2, asked.count { it == "get_vod_info:401" })
     }
 }

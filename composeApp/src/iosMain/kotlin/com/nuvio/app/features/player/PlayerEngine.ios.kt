@@ -51,6 +51,9 @@ actual fun PlatformPlayerSurface(
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
     isCatchUpPlayback: Boolean,
+    // Accepted for signature parity; iOS renders through the Swift MPVPlayerBridge, which has no
+    // Android SurfaceTexture stage and therefore none of the per-frame fence leak this drives.
+    @Suppress("UNUSED_PARAMETER") playbackSurface: String?,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,

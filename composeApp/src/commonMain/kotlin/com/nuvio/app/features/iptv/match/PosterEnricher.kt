@@ -68,6 +68,25 @@ internal object PosterEnricher {
     private var transportFailures = 0
 
     /**
+     * Clears the process-global build state between tests.
+     *
+     * This object is a singleton whose [attempted] set and [transportFailures] counter deliberately
+     * outlive any one request — an item is asked about at most once per PROCESS, and three
+     * consecutive transport failures pause the drain for a minute. In a test run that makes the
+     * suite order-dependent: once earlier tests push the counter to [FAILURE_PAUSE_THRESHOLD], a
+     * later test asserting a retry waits out a 60 s pause and times out. That is exactly how
+     * `PosterPipelineTest.transport failure is retryable` came to fail in some run orders and pass
+     * in others. Same idiom as `StalkerPlaybackTraffic.resetForTests`.
+     */
+    internal fun resetForTests() {
+        synchronized(lock) {
+            queue.clear()
+            attempted.clear()
+            transportFailures = 0
+        }
+    }
+
+    /**
      * Removes every queued entry that does NOT belong to [keepAccountId]; returns how many went.
      *
      * Pure and generic so the rule is testable without a portal: [accountOf] maps a queue value to
