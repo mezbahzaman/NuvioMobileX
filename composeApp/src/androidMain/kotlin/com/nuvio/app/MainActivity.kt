@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.os.Build
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -85,6 +86,27 @@ class MainActivity : AppCompatActivity() {
         SentryInitializer.start(application)
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawableResource(R.color.nuvio_background)
+        // Opt the whole window out of autofill.
+        //
+        // Fixes an unhandled crash first seen on 1.4.35 (SM-S931B, a crash loop): a recomposition
+        // of the Downloads screen reached Compose's AndroidAutofillManager, which marshals the
+        // autofill view structure across Binder — `android.os.TransactionTooLargeException: data
+        // parcel size 765276 bytes` against the 1MB limit. Known platform trap, and Google's own
+        // documented workaround for autofill-caused crashes is exactly this flag
+        // (https://issuetracker.google.com/issues/221094908).
+        //
+        // Safe because this app has NEVER integrated autofill: there is not one `autofillHints`,
+        // `AutofillType`, or `contentType` semantic anywhere in the codebase, and Compose's autofill
+        // is opt-in via `contentType`. So nothing we designed depends on it — only the platform's
+        // heuristic guessing at unhinted BasicTextFields, which is what was crashing us.
+        //
+        // If real password-manager support is wanted later, the fix is NOT to delete this line: add
+        // `contentType` semantics to the sign-in fields and narrow this to the screens that have no
+        // text input.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.decorView.importantForAutofill =
+                android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        }
         pipRemoteActionReceiver = PipRemoteActionReceiver.register(this)
         SyncClientIdentityStorage.initialize(applicationContext)
         com.nuvio.app.core.rec.RecEventStorage.initialize(applicationContext)
