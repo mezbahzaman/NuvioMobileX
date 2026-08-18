@@ -120,7 +120,7 @@ actual suspend fun httpGetText(url: String, dnsProvider: String?): String =
         .let { response ->
             val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
-                error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+                throw HttpStatusException(response.status.value, runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
                 throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
@@ -138,7 +138,7 @@ actual suspend fun httpPostJson(url: String, body: String): String =
         .let { response ->
             val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
-                error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+                throw HttpStatusException(response.status.value, runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
                 throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
@@ -162,7 +162,7 @@ actual suspend fun httpGetTextWithHeaders(
         .let { response ->
             val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
-                error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+                throw HttpStatusException(response.status.value, runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
                 throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
@@ -187,7 +187,7 @@ actual suspend fun httpPostJsonWithHeaders(
         .let { response ->
             val payload = response.bodyAsBoundedText()
             if (!response.status.isSuccess()) {
-                error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+                throw HttpStatusException(response.status.value, runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }
             if (payload.isBlank()) {
                 throw EmptyResponseBodyException(runBlocking { getString(Res.string.network_empty_response_body) })
@@ -214,7 +214,7 @@ actual suspend fun httpStreamLines(
         for ((k, v) in headers) header(k, v)
     }.execute { response ->
         if (!response.status.isSuccess()) {
-            error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+            throw HttpStatusException(response.status.value, runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
         }
         streamBoundedLines(response.bodyAsChannel(), onLine)
     }
