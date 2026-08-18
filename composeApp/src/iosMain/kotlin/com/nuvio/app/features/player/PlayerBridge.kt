@@ -22,6 +22,13 @@ interface NuvioPlayerBridge {
     fun retry()
     // Live streams must rejoin the live edge (reload) on foreground instead of unpausing.
     fun setIsLiveStream(isLive: Boolean)
+    // Picture-in-Picture. Hand-mirrored against MPVPlayerBridgeImpl in Swift — Gradle cannot check
+    // these signatures, so a rename on either side fails at runtime, not build time.
+    fun isPictureInPictureSupported(): Boolean
+    fun isPictureInPictureActive(): Boolean
+    fun startPictureInPicture()
+    fun stopPictureInPicture()
+    fun setPictureInPictureEnabled(enabled: Boolean)
     fun updateNowPlayingMetadata(
         title: String,
         subtitle: String?,

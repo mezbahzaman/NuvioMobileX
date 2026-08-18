@@ -138,6 +138,7 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
                 (runtime.shouldPlay && runtime.playbackSnapshot.isLoading))
         EnterImmersivePlayerMode(keepScreenAwake = keepScreenAwake)
         ManagePlayerPictureInPicture(
+            enabled = playerSettingsUiState.pictureInPictureEnabled,
             isPlaying = runtime.playbackSnapshot.isPlaying,
             videoSize = IntSize(
                 runtime.playbackSnapshot.videoWidth,

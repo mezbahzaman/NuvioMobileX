@@ -363,7 +363,10 @@ actual fun PlatformPlayerSurface(
 
     // Cleanup
     DisposableEffect(bridge) {
+        // Publish the live bridge so the PiP effects in PlayerPlatformEffects.ios.kt can reach it.
+        IosPictureInPictureBridgeHolder.register(bridge)
         onDispose {
+            IosPictureInPictureBridgeHolder.unregister(bridge)
             bridge.destroy()
         }
     }

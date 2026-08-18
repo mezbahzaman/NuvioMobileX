@@ -62,12 +62,15 @@ import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.features.iptv.CatchUpDialectWalk
 import com.nuvio.app.features.iptv.CatchUpPlayback
+import com.nuvio.app.features.iptv.TileEpgQueue
 import com.nuvio.app.features.iptv.XtreamCatchUp
 import com.nuvio.app.features.iptv.XtreamProgram
 import com.nuvio.app.core.analytics.Breadcrumbs
 import com.nuvio.app.core.analytics.LivePlaybackFreezeReporter
 import com.nuvio.app.core.analytics.LivePlaybackReconnector
+import androidx.compose.ui.unit.IntSize
 import com.nuvio.app.features.player.EnterImmersivePlayerMode
+import com.nuvio.app.features.player.ManagePlayerPictureInPicture
 import com.nuvio.app.features.player.LIVE_FREEZE_SURFACE_DOCKED
 import com.nuvio.app.features.player.LiveReplayLaunch
 import com.nuvio.app.features.player.onLiveSnapshot
@@ -77,6 +80,7 @@ import com.nuvio.app.features.player.PlayerEngineController
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.PlayerStreamInfo
 import com.nuvio.app.features.player.StreamInfoOverlay
+import com.nuvio.app.features.player.rememberIsInPictureInPicture
 import com.nuvio.app.features.player.rememberStreamInfoLines
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.PlayerResizeMode
@@ -513,6 +517,21 @@ fun LiveTvScreen(
             EnterImmersivePlayerMode(keepScreenAwake = snapshot.isPlaying || snapshot.isLoading)
         }
 
+        // Live TV hosts its own player surface rather than going through PlayerScreenContent, so it
+        // never inherited PiP — pressing home on a live channel just backgrounded the app while
+        // audio kept playing. Gated on hasVideoTrack because an IPTV lineup is full of radio
+        // stations and a PiP window for one of those is a black rectangle.
+        //
+        // videoWidth/Height are legitimately 0 on the mpv path (reading them would touch mpv from
+        // Main); buildAspectRatio treats that as "no hint" and lets the system pick, which is the
+        // right degradation rather than a wrong ratio.
+        val inPictureInPicture = rememberIsInPictureInPicture()
+        ManagePlayerPictureInPicture(
+            enabled = PlayerSettingsRepository.uiState.value.pictureInPictureEnabled,
+            isPlaying = snapshot.isPlaying && snapshot.hasVideoTrack,
+            videoSize = IntSize(snapshot.videoWidth, snapshot.videoHeight),
+        )
+
         // The centred play/pause button auto-hides while playing in BOTH layouts; the docked edge
         // chrome stays. See LiveTvOverlayPolicy for why they are treated separately.
         var controlsVisible by remember { mutableStateOf(true) }
@@ -638,7 +657,9 @@ fun LiveTvScreen(
 
                 StreamInfoOverlay(
                     lines = rememberStreamInfoLines(streamInfo),
-                    isVisible = showStreamInfo,
+                    // Never in PiP: the window is a few hundred pixels wide, so the resolution/codec
+                    // readout covers the picture it is describing.
+                    isVisible = showStreamInfo && !inPictureInPicture,
                     onAnimationComplete = { showStreamInfo = false },
                     modifier = Modifier.align(Alignment.TopEnd),
                     // Sits below the fullscreen button and the LIVE badge, which own the

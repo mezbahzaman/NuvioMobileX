@@ -9,6 +9,9 @@ import ComposeApp
 final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
 
     private var playerVC: MPVPlayerViewController?
+    /// Mirrors the user's Picture-in-Picture setting so a view controller created later still gets
+    /// it — Kotlin sets this before the surface exists on a cold player open.
+    private var pictureInPictureEnabled = false
 
     func createPlayerViewController() -> UIViewController {
         return ensurePlayerViewController()
@@ -17,6 +20,7 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     private func ensurePlayerViewController() -> MPVPlayerViewController {
         if let playerVC { return playerVC }
         let vc = MPVPlayerViewController()
+        vc.setExperimentalSinglePrimaryPictureInPictureEnabled(pictureInPictureEnabled)
         self.playerVC = vc
         return vc
     }
@@ -56,6 +60,16 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     func seekBy(offsetMs: Int64) { playerVC?.seekByMs(offsetMs) }
     func retry() { playerVC?.retryPlayback() }
     func setIsLiveStream(isLive: Bool) { ensurePlayerViewController().isLiveStream = isLive }
+    // Picture-in-Picture bridge surface. Mirrored by hand in NuvioPlayerBridge (Kotlin) — Gradle
+    // cannot check these signatures, so keep the two in step (the getVideoFrameTicks precedent).
+    func isPictureInPictureSupported() -> Bool { playerVC?.isPictureInPictureSupported() ?? false }
+    func startPictureInPicture() { playerVC?.startPictureInPicture() }
+    func stopPictureInPicture() { playerVC?.stopPictureInPicture(source: "kotlin") }
+    func isPictureInPictureActive() -> Bool { playerVC?.isPictureInPictureActive() ?? false }
+    func setPictureInPictureEnabled(enabled: Bool) {
+        pictureInPictureEnabled = enabled
+        playerVC?.setExperimentalSinglePrimaryPictureInPictureEnabled(enabled)
+    }
     func updateNowPlayingMetadata(
         title: String,
         subtitle: String?,
@@ -274,19 +288,91 @@ final class MPVPlayerViewController: UIViewController {
     }
 
     private let errorStateLock = NSLock()
-    private var metalLayer = MetalLayer()
+    var metalLayer = MetalLayer()
     private var lastAppliedDrawableSize: CGSize = .zero
     private var externallyManagedViewSize: CGSize?
     private var pendingSurfaceLayoutWorkItems: [DispatchWorkItem] = []
     private var pendingLoadRequest: PendingLoadRequest?
     private var pendingLoadRetryWorkItem: DispatchWorkItem?
-    private var mpv: OpaquePointer?
+    var mpv: OpaquePointer?
     private var cachedNowPlayingMetadata: CachedNowPlayingMetadata?
     private lazy var nowPlayingController = PlayerNowPlayingController(owner: self)
     private lazy var eventQueue = DispatchQueue(label: "mpv-events", qos: .userInitiated)
     private var recentPlaybackLogs: [String] = []
-    private var activeRequestHeaders: [String: String] = [:]
+    var activeRequestHeaders: [String: String] = [:]
     var isLiveStream = false
+
+    private var cachedPositionSeconds: Double = 0
+    private var cachedPositionSampledAt: CFTimeInterval = 0
+    private var cachedRenderFrameRate: Double = 30.0
+
+    /// Playback position for PiP sample timestamps, interpolated from the last 250ms poll so the
+    /// PiP window's timeline advances smoothly without a per-frame mpv property read.
+    var interpolatedPositionSeconds: Double {
+        guard cachedPositionSampledAt > 0 else { return cachedPositionSeconds }
+        guard isPlayerPlaying else { return cachedPositionSeconds }
+        let elapsed = CACurrentMediaTime() - cachedPositionSampledAt
+        guard elapsed > 0, elapsed < 2 else { return cachedPositionSeconds }
+        return cachedPositionSeconds + elapsed * Double(currentSpeed)
+    }
+
+    /// Frame rate for the CMSampleBuffer duration, cached off the same poll.
+    var currentRenderFrameRate: Double { cachedRenderFrameRate }
+
+    // Video dimensions for the PiP capture's aspect handling. The fork caches these behind a
+    // media-info refresh; we read mpv directly, same source its snapshot JSON already uses.
+    var currentVideoWidth: Int {
+        let w = getInt("video-params/w")
+        return w > 0 ? w : 0
+    }
+    var currentVideoHeight: Int {
+        let h = getInt("video-params/h")
+        return h > 0 ? h : 0
+    }
+
+    // The fork carries a Metal device-loss recovery subsystem (part of a larger bridge rework we
+    // did not take) and the PiP code consults it before re-arming capture. We have no such
+    // tracking, so we are never "awaiting recovery" and there is nothing to retry. If Metal device
+    // loss during backgrounding turns out to break PiP on real hardware, THIS is the gap to close.
+    var isAwaitingDeviceLossRecovery: Bool { false }
+    func retryDeviceLossRecoveryNow() {}
+
+    // ---- Picture-in-Picture (ported; see MPVPlayerViewController+PictureInPicture.swift) ----
+    var experimentalSinglePrimaryPictureInPictureEnabled = false
+    var primaryRenderSurface: MPVPictureInPictureFrameCapture?
+    lazy var sampleBufferDisplayView: SampleBufferDisplayView = {
+        // Deliberately 2x2 and offscreen: this layer exists only so AVPictureInPictureController has
+        // something it will accept. The picture the user sees comes from frames blitted into it.
+        let view = SampleBufferDisplayView(frame: CGRect(x: -4, y: -4, width: 2, height: 2))
+        view.alpha = 0.01
+        view.isHidden = false
+        view.pictureInPictureDelegate = self
+        return view
+    }()
+    var isPictureInPictureStarting = false
+    var pipStartTimeoutWorkItem: DispatchWorkItem?
+    var automaticPictureInPictureStartArmed = false
+    var automaticPictureInPicturePrepared = false
+    var automaticPictureInPicturePreparedAt: CFTimeInterval = 0
+    var automaticPictureInPictureStartPreparationInFlight = false
+    var automaticPictureInPictureStartRetryWorkItem: DispatchWorkItem?
+    var automaticPictureInPictureTimeoutWorkItem: DispatchWorkItem?
+    var automaticPictureInPictureBackgroundTask: UIBackgroundTaskIdentifier = .invalid
+    var videoTrackSuspendedForBackground = false
+    var resumePlaybackAfterPictureInPictureRestore = false
+    var pipRestoreResumeWorkItem: DispatchWorkItem?
+    var preservePlaybackDuringPictureInPictureStart = false
+    var ignorePictureInPicturePauseCallbacksUntil: CFTimeInterval = 0
+    var automaticPiPHomeSwipeCandidate = false
+    lazy var automaticPiPHomeSwipeRecognizer: UIPanGestureRecognizer = {
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(handleAutomaticPiPHomeSwipe(_:)))
+        recognizer.maximumNumberOfTouches = 1
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        recognizer.delaysTouchesEnded = false
+        recognizer.delegate = self
+        return recognizer
+    }()
 
     // Cached track lists
     var audioTracks: [TrackInfo] = []
@@ -356,8 +442,13 @@ final class MPVPlayerViewController: UIViewController {
         layoutMetalLayer()
 
         setupMpv()
+        // Must run after setupMpv (it needs the live metalLayer) and before the view is on screen.
+        installExperimentalPictureInPictureCaptureIfNeeded()
         activateAudioSessionForPlayback()
         setupNotifications()
+        if experimentalSinglePrimaryPictureInPictureEnabled {
+            view.addGestureRecognizer(automaticPiPHomeSwipeRecognizer)
+        }
         refreshImmersiveSystemUI()
     }
 
@@ -369,6 +460,7 @@ final class MPVPlayerViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         layoutMetalLayer()
+        layoutExperimentalPictureInPictureSurfaces(in: view.bounds)
         attemptStartPendingLoad()
     }
 
@@ -550,31 +642,10 @@ final class MPVPlayerViewController: UIViewController {
         }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
     }
 
-    private func setupNotifications() {
-        NotificationCenter.default.addObserver(self, selector: #selector(enterBackground),
-                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(enterForeground),
-                                               name: UIApplication.willEnterForegroundNotification, object: nil)
-    }
-
-    @objc private func enterBackground() {
-        guard mpv != nil else { return }
-        pausePlayback()
-        setStringProperty("vid", "no")
-    }
-
-    @objc private func enterForeground() {
-        guard mpv != nil else { return }
-        setStringProperty("vid", "auto")
-        // A live stream paused in the background goes stale (dead socket, old buffer):
-        // unpausing plays the leftover buffer then stalls. Reload to rejoin the live edge.
-        if isLiveStream, let path = getString("path") {
-            clearPlaybackError()
-            applyRequestHeaders(activeRequestHeaders)
-            command("loadfile", args: [path, "replace"])
-        }
-        playPlayback()
-    }
+    // setupNotifications / enterBackground / enterForeground now live in
+    // MPVPlayerViewController+PictureInPicture.swift, because backgrounding is exactly the moment
+    // PiP has to decide whether to keep the video track alive or suspend it. Our live-edge rejoin
+    // is preserved there — see the LOCAL block in enterForeground().
 
     // MARK: - Playback API
 
@@ -938,6 +1009,20 @@ final class MPVPlayerViewController: UIViewController {
         bufferedMs = Int64(max(position + cached, 0) * 1000)
         currentSpeed = Float(speed > 0 ? speed : 1.0)
 
+        // PiP frame capture reads position and frame rate for every CMSampleBuffer it enqueues.
+        // Those are per-presented-frame calls, so they must NOT touch mpv: mpv_get_property takes
+        // the core lock, which a live demuxer can hold for seconds (the Android rule that put every
+        // mpv read behind a shadow copy). Cache here on the existing 250ms poll and interpolate.
+        cachedPositionSeconds = max(position, 0)
+        cachedPositionSampledAt = CACurrentMediaTime()
+        let sampledFps = getDouble("estimated-vf-fps")
+        if sampledFps.isFinite && sampledFps > 1 {
+            cachedRenderFrameRate = sampledFps
+        } else {
+            let container = getDouble("container-fps")
+            if container.isFinite && container > 1 { cachedRenderFrameRate = container }
+        }
+
         // Live-freeze detection: the picture can stop while audio plays on, which leaves every
         // other field here looking healthy. `estimated-vf-fps` is the one signal that stops too.
         hasVideoTrack = !(getString("video-format") ?? "").isEmpty
@@ -1192,7 +1277,7 @@ final class MPVPlayerViewController: UIViewController {
         return raw
     }
 
-    private func clearPlaybackError() {
+    func clearPlaybackError() {
         errorStateLock.lock()
         recentPlaybackLogs.removeAll(keepingCapacity: true)
         _currentErrorMessage = nil
@@ -1279,7 +1364,7 @@ final class MPVPlayerViewController: UIViewController {
 
     // MARK: - MPV Helpers
 
-    private func command(_ command: String, args: [String?] = [], checkForErrors: Bool = true) {
+    func command(_ command: String, args: [String?] = [], checkForErrors: Bool = true) {
         guard mpv != nil else { return }
         var cargs = makeCArgs(command, args).map { $0.flatMap { UnsafePointer<CChar>(strdup($0)) } }
         defer { for ptr in cargs where ptr != nil { free(UnsafeMutablePointer(mutating: ptr!)) } }
@@ -1294,14 +1379,14 @@ final class MPVPlayerViewController: UIViewController {
         return strArgs
     }
 
-    private func getDouble(_ name: String) -> Double {
+    func getDouble(_ name: String) -> Double {
         guard mpv != nil else { return 0.0 }
         var data = Double()
         mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &data)
         return data
     }
 
-    private func getString(_ name: String) -> String? {
+    func getString(_ name: String) -> String? {
         guard mpv != nil else { return nil }
         let cstr = mpv_get_property_string(mpv, name)
         let str: String? = cstr == nil ? nil : String(cString: cstr!)
@@ -1309,7 +1394,7 @@ final class MPVPlayerViewController: UIViewController {
         return str
     }
 
-    private func getFlag(_ name: String) -> Bool {
+    func getFlag(_ name: String) -> Bool {
         guard mpv != nil else { return false }
         var data = Int64()
         mpv_get_property(mpv, name, MPV_FORMAT_FLAG, &data)
@@ -1322,7 +1407,7 @@ final class MPVPlayerViewController: UIViewController {
         mpv_set_property(mpv, name, MPV_FORMAT_FLAG, &data)
     }
 
-    private func setStringProperty(_ name: String, _ value: String) {
+    func setStringProperty(_ name: String, _ value: String) {
         guard mpv != nil else { return }
         checkError(mpv_set_property_string(mpv, name, value))
     }
@@ -1374,7 +1459,7 @@ final class MPVPlayerViewController: UIViewController {
         return sanitized
     }
 
-    private func applyRequestHeaders(_ headers: [String: String]) {
+    func applyRequestHeaders(_ headers: [String: String]) {
         guard mpv != nil else { return }
         if headers.isEmpty {
             checkError(mpv_set_property_string(mpv, "http-header-fields", ""))

@@ -24,6 +24,7 @@ actual object PlayerSettingsStorage {
     private const val holdToSpeedEnabledKey = "hold_to_speed_enabled"
     private const val holdToSpeedValueKey = "hold_to_speed_value"
     private const val touchGesturesEnabledKey = "touch_gestures_enabled"
+    private const val pictureInPictureEnabledKey = "picture_in_picture_enabled"
     private const val externalPlayerEnabledKey = "external_player_enabled"
     private const val externalPlayerForwardSubtitlesKey = "external_player_forward_subtitles"
     private const val externalPlayerSendSkipSegmentsKey = "external_player_send_skip_segments"
@@ -259,6 +260,12 @@ actual object PlayerSettingsStorage {
 
     actual fun saveTouchGesturesEnabled(enabled: Boolean) {
         saveBoolean(touchGesturesEnabledKey, enabled)
+    }
+
+    actual fun loadPictureInPictureEnabled(): Boolean? = loadBoolean(pictureInPictureEnabledKey)
+
+    actual fun savePictureInPictureEnabled(enabled: Boolean) {
+        saveBoolean(pictureInPictureEnabledKey, enabled)
     }
 
     actual fun loadExternalPlayerEnabled(): Boolean? {

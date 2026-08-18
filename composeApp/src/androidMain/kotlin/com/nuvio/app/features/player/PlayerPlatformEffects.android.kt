@@ -3,7 +3,11 @@ package com.nuvio.app.features.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.app.AppOpsManager
+import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.media.AudioManager
 import androidx.activity.ComponentActivity
 import android.os.Build
@@ -62,6 +66,7 @@ actual fun EnterImmersivePlayerMode(keepScreenAwake: Boolean) {
 
 @Composable
 actual fun ManagePlayerPictureInPicture(
+    enabled: Boolean,
     isPlaying: Boolean,
     videoSize: IntSize,
 ) {
@@ -74,12 +79,69 @@ actual fun ManagePlayerPictureInPicture(
     }
 
     SideEffect {
+        // isActive=false clears auto-enter, so a disabled setting means the OS never pulls us into
+        // PiP rather than us trying to back out of it after the fact.
         PlayerPictureInPictureManager.updateSession(
             activity = activity,
-            isActive = true,
+            isActive = enabled,
             isPlaying = isPlaying,
             videoSize = videoSize,
         )
+    }
+}
+
+actual fun platformSupportsPictureInPicture(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+
+actual fun isPictureInPictureBlockedBySystem(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    val context = AndroidPictureInPictureContext.appContext ?: return false
+    if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+        return true
+    }
+    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
+    val mode = runCatching {
+        appOps.unsafeCheckOpNoThrow(
+            AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
+            android.os.Process.myUid(),
+            context.packageName,
+        )
+    }.getOrElse { return false }
+    return mode != AppOpsManager.MODE_ALLOWED
+}
+
+actual fun openPictureInPictureSystemSettings() {
+    val context = AndroidPictureInPictureContext.appContext ?: return
+    // Deliberately the raw action string: Settings.ACTION_PICTURE_IN_PICTURE_SETTINGS is NOT public
+    // API (absent from android.jar as of API 37 — checked, not assumed), even though the screen it
+    // opens is a normal Settings activity. Verified to resolve on an API 36 emulator, but resolution
+    // is re-checked at runtime because an OEM build may not ship the screen at all.
+    val pipSettings = Intent(ACTION_PICTURE_IN_PICTURE_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val appDetails = Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        Uri.fromParts("package", context.packageName, null),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    val target = if (pipSettings.resolveActivity(context.packageManager) != null) {
+        pipSettings
+    } else {
+        appDetails
+    }
+    runCatching { context.startActivity(target) }
+        .onFailure { runCatching { context.startActivity(appDetails) } }
+}
+
+private const val ACTION_PICTURE_IN_PICTURE_SETTINGS = "android.settings.PICTURE_IN_PICTURE_SETTINGS"
+
+/** Application context for the non-composable PiP capability probes above. */
+object AndroidPictureInPictureContext {
+    @Volatile
+    var appContext: Context? = null
+        private set
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
     }
 }
 

@@ -66,7 +66,14 @@ import com.nuvio.app.features.player.IosHardwareDecoderMode
 import com.nuvio.app.features.player.localizedLabel
 import com.nuvio.app.features.player.IosTargetPrimaries
 import com.nuvio.app.features.player.IosTargetTransfer
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.isPictureInPictureBlockedBySystem
+import com.nuvio.app.features.player.openPictureInPictureSystemSettings
+import com.nuvio.app.features.player.platformSupportsPictureInPicture
 import com.nuvio.app.features.player.STREAM_AUTO_PLAY_TIMEOUT_VALUES
 import com.nuvio.app.features.player.SubtitleBackgroundColorSwatches
 import com.nuvio.app.features.player.SubtitleColorSwatches
@@ -334,6 +341,19 @@ private fun PlaybackSettingsSection(
     var p2pCacheClearFailed by remember { mutableStateOf(false) }
     val pluginsEnabled = AppFeaturePolicy.pluginsEnabled
     val autoPlayPlayerSettings by PlayerSettingsRepository.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // Re-probed on every RESUME rather than remembered once: the user can leave to system settings,
+    // flip the permission, and come straight back to this page.
+    var pictureInPictureBlocked by remember { mutableStateOf(isPictureInPictureBlockedBySystem()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                pictureInPictureBlocked = isPictureInPictureBlockedBySystem()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val p2pSettings by remember {
         P2pSettingsRepository.ensureLoaded()
         P2pSettingsRepository.uiState
@@ -429,6 +449,31 @@ private fun PlaybackSettingsSection(
                         isTablet = isTablet,
                         onCheckedChange = PlayerSettingsRepository::setExternalPlayerSendSkipSegments,
                     )
+                }
+                // PiP only where the OS actually has it: Android has it, iOS cannot until the mpv
+                // render path can hand AVPictureInPictureController a layer it accepts, and desktop
+                // has no equivalent. A switch that silently does nothing is worse than no switch.
+                if (platformSupportsPictureInPicture()) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_picture_in_picture),
+                        description = stringResource(Res.string.settings_playback_picture_in_picture_description),
+                        checked = autoPlayPlayerSettings.pictureInPictureEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setPictureInPictureEnabled,
+                    )
+                    // The per-app PiP permission can be revoked in system settings, after which
+                    // entering PiP silently no-ops — audio keeps playing and no window appears,
+                    // which is indistinguishable from a bug in the app. Say so, and offer the fix.
+                    if (autoPlayPlayerSettings.pictureInPictureEnabled && pictureInPictureBlocked) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.settings_playback_picture_in_picture_blocked),
+                            description = stringResource(Res.string.settings_playback_picture_in_picture_blocked_description),
+                            isTablet = isTablet,
+                            onClick = { openPictureInPictureSystemSettings() },
+                        )
+                    }
                 }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(

@@ -3,6 +3,11 @@ package com.nuvio.app.features.player
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.IntSize
 import platform.Foundation.NSNotificationCenter
@@ -47,12 +52,51 @@ actual fun EnterImmersivePlayerMode(keepScreenAwake: Boolean) {
 
 @Composable
 actual fun ManagePlayerPictureInPicture(
+    enabled: Boolean,
     isPlaying: Boolean,
     videoSize: IntSize,
-) = Unit
+) {
+    // iOS PiP runs entirely in the Swift bridge: AVPictureInPictureController is bound to an
+    // AVSampleBufferDisplayLayer that receives frames blitted out of mpv's Metal drawable, so all
+    // this side has to do is tell the bridge whether the user wants it. The OS drives the rest via
+    // canStartPictureInPictureAutomaticallyFromInline when the app is backgrounded.
+    //
+    // Deliberately keyed on `enabled` only: isPlaying/videoSize are Android's concern (they feed
+    // PictureInPictureParams there) and re-sending them here would thrash the capture install.
+    DisposableEffect(enabled) {
+        IosPictureInPictureBridgeHolder.setEnabled(enabled)
+        onDispose {
+            if (enabled) IosPictureInPictureBridgeHolder.setEnabled(false)
+        }
+    }
+}
+
+// PiP exists on iOS 14+ for iPhone and iPadOS; the device-level answer comes from
+// AVPictureInPictureController.isPictureInPictureSupported() inside the bridge, which needs a live
+// player. Report true here so the settings row is offered, and let the bridge no-op if the device
+// or the moment says otherwise — the same shape as Android, where the row shows and the OS may
+// still refuse.
+actual fun platformSupportsPictureInPicture(): Boolean = true
+
+// iOS has no equivalent of Android's per-app PiP app-op: the capability is not user-revocable.
+actual fun isPictureInPictureBlockedBySystem(): Boolean = false
+
+actual fun openPictureInPictureSystemSettings() = Unit
 
 @Composable
-actual fun rememberIsInPictureInPicture(): Boolean = false
+actual fun rememberIsInPictureInPicture(): Boolean {
+    var inPip by remember { mutableStateOf(false) }
+    // AVKit gives the app delegate callbacks, not an observable the Kotlin side can subscribe to,
+    // so this polls. 250ms matches the existing player snapshot cadence and is only used to hide
+    // chrome, which never needs to be frame-accurate.
+    LaunchedEffect(Unit) {
+        while (true) {
+            inPip = IosPictureInPictureBridgeHolder.isActive()
+            delay(250)
+        }
+    }
+    return inPip
+}
 
 @Composable
 actual fun rememberPlayerGestureController(): PlayerGestureController? {
