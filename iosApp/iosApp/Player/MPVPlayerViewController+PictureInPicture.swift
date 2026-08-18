@@ -103,12 +103,12 @@ extension MPVPlayerViewController {
     func startAutomaticPictureInPictureFromHomeGesture() {
         guard mpv != nil, isViewLoaded, view.window != nil else { return }
         guard !isPictureInPictureActive(), !isPictureInPictureStarting else { return }
-        guard !getFlag("pause"), !getFlag("eof-reached") else { return }
+        guard !cachedPaused, !cachedEofReached else { return }
         guard let controller = sampleBufferDisplayView.pictureInPictureController else { return }
 
         automaticPictureInPictureStartArmed = true
         isPictureInPictureStarting = true
-        preservePlaybackDuringPictureInPictureStart = !getFlag("pause") && !getFlag("eof-reached")
+        preservePlaybackDuringPictureInPictureStart = !cachedPaused && !cachedEofReached
         ignorePictureInPicturePauseCallbacksUntil = 0
         beginAutomaticPictureInPictureBackgroundTask()
         scheduleAutomaticPictureInPictureTimeout()
@@ -137,7 +137,7 @@ extension MPVPlayerViewController {
         guard experimentalSinglePrimaryPictureInPictureEnabled else { return }
         guard UIApplication.shared.applicationState == .active else { return }
         guard !isPictureInPictureActive(), !isPictureInPictureStarting else { return }
-        guard !getFlag("pause"), !getFlag("eof-reached") else { return }
+        guard !cachedPaused, !cachedEofReached else { return }
         guard let primaryRenderSurface else { return }
         guard !automaticPictureInPictureStartPreparationInFlight else { return }
 
@@ -289,7 +289,7 @@ extension MPVPlayerViewController {
         }
 
         isPictureInPictureStarting = true
-        preservePlaybackDuringPictureInPictureStart = !getFlag("pause") && !getFlag("eof-reached")
+        preservePlaybackDuringPictureInPictureStart = !cachedPaused && !cachedEofReached
         ignorePictureInPicturePauseCallbacksUntil = 0
         schedulePictureInPictureStartTimeout()
         primaryRenderSurface.startPictureInPicturePriming { [weak self] in
@@ -535,7 +535,7 @@ extension MPVPlayerViewController {
             self.playPlayback()
             self.sampleBufferDisplayView.pictureInPictureController?.invalidatePlaybackState()
 
-            let position = self.getDouble("time-pos")
+            let position = self.interpolatedPositionSeconds
             InAppLogBridge.shared.info(
                 tag: "PiP/iOS",
                 message: "Resumed primary playback after PiP restore position=\(String(format: "%.2f", position))"
@@ -670,7 +670,7 @@ extension MPVPlayerViewController: PictureInPictureControllerDelegate {
         }
         automaticPictureInPicturePrepared = false
         automaticPictureInPicturePreparedAt = 0
-        if UIApplication.shared.applicationState == .active, !getFlag("pause"), !getFlag("eof-reached") {
+        if UIApplication.shared.applicationState == .active, !cachedPaused, !cachedEofReached {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
                 self?.prewarmAutomaticPictureInPictureSource(reason: "pip-stopped")
             }
@@ -680,7 +680,7 @@ extension MPVPlayerViewController: PictureInPictureControllerDelegate {
     func pictureInPictureControllerRestoreUI(_ controller: PictureInPictureController, completion: @escaping (Bool) -> Void) {
         resumePlaybackAfterPictureInPictureRestore = true
 
-        let position = getDouble("time-pos")
+        let position = interpolatedPositionSeconds
         InAppLogBridge.shared.info(
             tag: "PiP/iOS",
             message: "Restoring player UI from PiP position=\(String(format: "%.2f", position)); playback will resume"
@@ -727,7 +727,7 @@ extension MPVPlayerViewController: PictureInPictureControllerDelegate {
 
     func pictureInPictureControllerIsPlaying(_ controller: PictureInPictureController) -> Bool {
         guard mpv != nil else { return false }
-        return !getFlag("pause") && !getFlag("eof-reached")
+        return !cachedPaused && !cachedEofReached
     }
 
     func pictureInPictureControllerDuration(_ controller: PictureInPictureController) -> Double {

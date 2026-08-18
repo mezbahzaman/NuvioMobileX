@@ -16,26 +16,21 @@ package com.nuvio.app.features.player
 object IosPictureInPictureBridgeHolder {
     private var current: NuvioPlayerBridge? = null
 
-    /**
-     * Last value asked for, remembered so it survives arriving before the bridge does.
-     *
-     * Ordering matters here: LiveTvScreen declares `ManagePlayerPictureInPicture` well above the
-     * `PlatformPlayerSurface` that creates and registers the bridge, so on a cold open the enable
-     * call lands while [current] is still null. Without this latch the flag was simply dropped and
-     * the capture never installed — PiP silently did nothing, which is exactly what the simulator
-     * run showed (no "PiP frame capture enabled" line at all).
-     */
-    private var desiredEnabled = false
+    /** The enable/replay decision, extracted so it is testable without a 56-method bridge fake. */
+    private val latch = PictureInPictureEnableLatch()
 
     fun register(bridge: NuvioPlayerBridge) {
         current = bridge
         // Replay the latched setting: the bridge stores it and applies it to the player view
         // controller at construction, which must happen before viewDidLoad installs the capture.
-        bridge.setPictureInPictureEnabled(desiredEnabled)
+        bridge.setPictureInPictureEnabled(latch.attach())
     }
 
     fun unregister(bridge: NuvioPlayerBridge) {
-        if (current === bridge) current = null
+        if (current === bridge) {
+            current = null
+            latch.detach()
+        }
     }
 
     /** True when a player is on screen and iOS reports PiP is usable on this device. */
@@ -44,8 +39,7 @@ object IosPictureInPictureBridgeHolder {
     fun isActive(): Boolean = current?.isPictureInPictureActive() ?: false
 
     fun setEnabled(enabled: Boolean) {
-        desiredEnabled = enabled
-        current?.setPictureInPictureEnabled(enabled)
+        if (latch.setDesired(enabled)) current?.setPictureInPictureEnabled(enabled)
     }
 
     fun start() {

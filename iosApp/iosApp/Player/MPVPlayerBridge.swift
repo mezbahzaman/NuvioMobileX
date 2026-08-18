@@ -302,6 +302,10 @@ final class MPVPlayerViewController: UIViewController {
     var activeRequestHeaders: [String: String] = [:]
     var isLiveStream = false
 
+    /// mpv `pause` / `eof-reached`, sampled on the 250ms poll. See refreshPlaybackState.
+    var cachedPaused: Bool = false
+    var cachedEofReached: Bool = false
+
     private var cachedPositionSeconds: Double = 0
     private var cachedPositionSampledAt: CFTimeInterval = 0
     private var cachedRenderFrameRate: Double = 30.0
@@ -1004,6 +1008,13 @@ final class MPVPlayerViewController: UIViewController {
         isPlayerLoading = (idle && !paused && !eofReached) || seeking || bufferingCache
         isPlayerPlaying = !paused && !idle && !eofReached
         isPlayerEnded = eofReached
+        // Mirrored for the PiP paths, which run on Main — including inside the Home-swipe gesture
+        // and AVKit's delegate callbacks. Reading these from mpv there means mpv_get_property, which
+        // takes the core lock a stalled live demuxer can hold for seconds: the same shape that
+        // caused the Android ANRs, but on the iOS main thread at the exact moment the user swipes.
+        // 250ms of staleness is irrelevant to "may PiP start"; a watchdog kill is not.
+        cachedPaused = paused
+        cachedEofReached = eofReached
         durationMs = Int64(duration * 1000)
         positionMs = Int64(max(position, 0) * 1000)
         bufferedMs = Int64(max(position + cached, 0) * 1000)
