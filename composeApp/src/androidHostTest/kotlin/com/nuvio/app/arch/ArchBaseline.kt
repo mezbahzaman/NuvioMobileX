@@ -16,7 +16,6 @@ object ArchBaseline {
         "androidMain/kotlin/com/nuvio/app/features/player/PlayerEngine.android.kt",
         "commonMain/kotlin/com/nuvio/app/App.kt",
         "commonMain/kotlin/com/nuvio/app/core/storage/LocalAccountDataCleaner.kt",
-        "commonMain/kotlin/com/nuvio/app/core/sync/SyncManager.kt",
         "commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt",
         "commonMain/kotlin/com/nuvio/app/features/details/MetaDetailsRepository.kt",
         "commonMain/kotlin/com/nuvio/app/features/home/HomeScreen.kt",
