@@ -6,6 +6,8 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.features.common.lifecycle.FeatureRegistry
 import com.nuvio.app.features.common.lifecycle.LocalRevertFailureSink
 import com.nuvio.app.core.contracts.IptvCatalogAccess
+import com.nuvio.app.core.contracts.IptvContentClassifierAccess
+import com.nuvio.app.features.iptv.XtreamContentClassifier
 import com.nuvio.app.core.contracts.LocalIptvCatalog
 import com.nuvio.app.features.iptv.XtreamRepository
 
@@ -39,6 +41,7 @@ private val revertLog = Logger.withTag("EffectScope")
 fun registerFeatureContributions() {
     // S3a: register the IptvCatalog read port for non-Compose consumers.
     IptvCatalogAccess.register(XtreamRepository)
+    IptvContentClassifierAccess.register(XtreamContentClassifier)
     FeatureRegistry.markInitialized()
 }
 
