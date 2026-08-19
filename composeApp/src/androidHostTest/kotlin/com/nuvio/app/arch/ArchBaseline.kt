@@ -25,7 +25,6 @@ object ArchBaseline {
         "commonMain/kotlin/com/nuvio/app/features/settings/AdvancedSettingsPage.kt",
         "commonMain/kotlin/com/nuvio/app/features/settings/SettingsScreen.kt",
         "commonMain/kotlin/com/nuvio/app/features/streams/StreamsRepository.kt",
-        "commonMain/kotlin/com/nuvio/app/features/watchprogress/WatchProgressRepository.kt",
         "iosMain/kotlin/com/nuvio/app/core/ui/PlatformImageLoader.ios.kt",
         "iosMain/kotlin/com/nuvio/app/features/player/PlayerEngine.ios.kt",
     )
