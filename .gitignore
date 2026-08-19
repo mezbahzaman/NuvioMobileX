@@ -32,6 +32,8 @@ PERFORMANCE_FINDINGS.md
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
+# The MPVKit checkout itself (the built iOS mpv framework, ~6G) — local-only, fetched/built per machine.
+MPVKit/
 
 # Hand-made backups of the built MPVKit binaries, kept next to the checkout before
 # rebuilding the engine. Hundreds of MB of .xcframework output — the same artifacts
