@@ -57,7 +57,20 @@ data class PlayerSettingsUiState(
     val addonSubtitleStartupMode: AddonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES,
     val streamReuseLastLinkEnabled: Boolean = false,
     val streamReuseLastLinkCacheHours: Int = 24,
-    val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.Auto,
+    /**
+     * Default is libmpv on Android, NOT Auto (which starts on ExoPlayer).
+     *
+     * ExoPlayer macroblocks 4K / high-bitrate H.264 on Qualcomm hardware decoders — the "green
+     * blocks on live" cohort — while libmpv decodes the same streams clean (device-confirmed on a
+     * Galaxy S24 Ultra; see research/tuvora-4k-avc-macroblocking). Defaulting to libmpv is safe
+     * now that [androidLibmpvVideoOutput] defaults to `gpu` (not `gpu-next`), which sidesteps the
+     * libplacebo v7.360.0 sync_file fd leak that once made a libmpv default untenable.
+     *
+     * Android-only: iOS always renders through the Swift MPV bridge and desktop uses its own
+     * native player, so both persist this field but ignore it for engine selection. This moves
+     * only the DEFAULT — a user who explicitly picked Auto or ExoPlayer keeps that choice.
+     */
+    val androidPlaybackEngine: AndroidPlaybackEngine = AndroidPlaybackEngine.Libmpv,
     /**
      * `gpu`, NOT `gpu-next`, until our libmpv bundles libplacebo >= v7.360.1.
      *
@@ -153,7 +166,9 @@ object PlayerSettingsRepository {
     private var addonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES
     private var streamReuseLastLinkEnabled = false
     private var streamReuseLastLinkCacheHours = 24
-    private var androidPlaybackEngine = AndroidPlaybackEngine.Auto
+    // libmpv, not Auto — ExoPlayer macroblocks 4K/high-bitrate H.264 on Qualcomm; see the
+    // KDoc on the UI-state default.
+    private var androidPlaybackEngine = AndroidPlaybackEngine.Libmpv
     // gpu, not gpu-next — see the KDoc on the UI-state default: our libplacebo (v7.360.0) leaks
     // one sync_file fd per frame on its OpenGL backend, fixed upstream in v7.360.1.
     private var androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.Gpu
@@ -228,7 +243,7 @@ object PlayerSettingsRepository {
         addonSubtitleStartupMode = AddonSubtitleStartupMode.ALL_SUBTITLES
         streamReuseLastLinkEnabled = false
         streamReuseLastLinkCacheHours = 24
-        androidPlaybackEngine = AndroidPlaybackEngine.Auto
+        androidPlaybackEngine = AndroidPlaybackEngine.Libmpv
         androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.Gpu
         androidLibmpvHardwareDecodingEnabled = true
         androidLibmpvYuv420pEnabled = false
@@ -328,7 +343,8 @@ object PlayerSettingsRepository {
         streamReuseLastLinkCacheHours = PlayerSettingsStorage.loadStreamReuseLastLinkCacheHours() ?: 24
         androidPlaybackEngine = PlayerSettingsStorage.loadAndroidPlaybackEngine()
             ?.let { runCatching { AndroidPlaybackEngine.valueOf(it) }.getOrNull() }
-            ?: AndroidPlaybackEngine.Auto
+            // Nothing stored -> libmpv. A user who explicitly picked Auto/ExoPlayer keeps it.
+            ?: AndroidPlaybackEngine.Libmpv
         androidLibmpvVideoOutput = PlayerSettingsStorage.loadAndroidLibmpvVideoOutput()
             ?.let { runCatching { AndroidLibmpvVideoOutput.valueOf(it) }.getOrNull() }
             // An install with NOTHING stored takes gpu. A user who explicitly picked gpu-next
