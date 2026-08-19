@@ -17,7 +17,6 @@ object ArchBaseline {
         "commonMain/kotlin/com/nuvio/app/App.kt",
         "commonMain/kotlin/com/nuvio/app/features/details/MetaDetailsRepository.kt",
         "commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeEffects.kt",
-        "commonMain/kotlin/com/nuvio/app/features/player/PlayerStreamsRepository.kt",
         "iosMain/kotlin/com/nuvio/app/core/ui/PlatformImageLoader.ios.kt",
         "iosMain/kotlin/com/nuvio/app/features/player/PlayerEngine.ios.kt",
     )
