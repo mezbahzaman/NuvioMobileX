@@ -47,12 +47,23 @@ class LiveTsExtractorFlagsTest {
         )
     }
 
-    /** Exactly the three we intend — a stray flag here changes parsing for every stream. */
+    /** SCTE-35 splice-info streams stall/macroblock some IPTV feeds; ignoring them was added with
+     * the ExoPlayer TS macroblocking fix. */
+    @Test
+    fun `splice info stream is ignored`() {
+        assertTrue(
+            LIVE_TS_EXTRACTOR_FLAGS and DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM != 0,
+            "without FLAG_IGNORE_SPLICE_INFO_STREAM SCTE-35 splice streams can stall/macroblock some IPTV feeds",
+        )
+    }
+
+    /** Exactly the four we intend — a stray flag here changes parsing for every stream. */
     @Test
     fun `no unintended flags are set`() {
         val intended = DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
             DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
-            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
+            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+            DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
         assertEquals(intended, LIVE_TS_EXTRACTOR_FLAGS)
     }
 }
