@@ -588,6 +588,8 @@ kotlin {
             // The -jvm artifact explicitly: the default resolves the ANDROID variant, whose
             // native sqliteJni .so isn't loadable on a desktop-JVM host test.
             implementation("androidx.sqlite:sqlite-bundled-jvm:${libs.versions.androidx.sqlite.get()}")
+            // Architecture test (Rule 6): static structure check, JVM-only (Konsist is JVM).
+            implementation(libs.konsist)
         }
     }
 }

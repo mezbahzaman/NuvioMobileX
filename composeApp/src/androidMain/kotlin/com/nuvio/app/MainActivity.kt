@@ -175,7 +175,9 @@ class MainActivity : AppCompatActivity() {
         handleIncomingAppIntent(intent)
 
         setContent {
-            App()
+            installFeatures {
+                App()
+            }
         }
     }
 

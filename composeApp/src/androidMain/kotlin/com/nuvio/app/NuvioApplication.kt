@@ -31,6 +31,9 @@ class NuvioApplication : Application() {
         super.onCreate()
         // Resolve the memory tier once, before anything sizes a cache from it.
         AndroidMemoryTierProbe.tier(this)
+        // Feature-contribution bootstrap (once per process — see FeatureWiring.kt).
+        // Must run before the first composition reads any port.
+        registerFeatureContributions()
         SentrySettingsStorage.initialize(this)
         SentrySettingsRepository.ensureLoaded()
         val crashReportsEnabled = SentrySettingsRepository.enabled.value
