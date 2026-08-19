@@ -228,9 +228,9 @@ actual fun PlatformPlayerSurface(
                 modifier = modifier,
                 playWhenReady = playWhenReady,
                 resizeMode = resizeMode,
-                // Routed through the policy rather than read raw. Currently a pass-through (the
-                // renderer is fixed by the `gpu` default in PlayerSettingsRepository), but the
-                // decision belongs in one place. See LiveVideoOutputPolicy.
+                // Routed through the policy: on the live path it downgrades a leaking gpu-next to
+                // gpu (the fence-fd leak fix — see LiveVideoOutputPolicy); off the live path it
+                // passes the user's renderer through unchanged.
                 videoOutput = LiveVideoOutputPolicy.videoOutputFor(
                     isLive = normalizeStreamType(streamType) == "live",
                     isCatchUpPlayback = isCatchUpPlayback,
@@ -1015,7 +1015,7 @@ private fun LibmpvPlayerSurface(
     modifier: Modifier,
     playWhenReady: Boolean,
     resizeMode: PlayerResizeMode,
-    /** Already resolved by [LiveVideoOutputPolicy] — may be a comma-separated mpv fallback chain. */
+    /** Already resolved by [LiveVideoOutputPolicy]: gpu on the live path, else the user's renderer. */
     videoOutput: String,
     hardwareDecodingEnabled: Boolean,
     yuv420pEnabled: Boolean,
@@ -1594,10 +1594,8 @@ private class NuvioLibmpvView(
         attachedSurface = surface
         mpv.setOptionString("force-window", "yes")
         mpv.setPropertyString("vo", videoOutput)
-        // Logged because [videoOutput] may now be a comma-separated fallback chain
-        // (LiveVideoOutputPolicy.DIRECT_SURFACE_VO). setPropertyString returns Unit, so a libmpv
-        // build that refused a list here would black-screen with nothing saying why; this line is
-        // what makes the applied chain visible in logcat when that has to be diagnosed.
+        // Logged so the applied renderer (gpu on live, else the user's choice) is visible in logcat
+        // when a black screen or fence-fd leak has to be diagnosed. setPropertyString returns Unit.
         Log.i(TAG, "mpv vo applied: '$videoOutput'")
         recordMpvStage("surface_attached")
     }
@@ -1614,13 +1612,6 @@ private class NuvioLibmpvView(
         setVo(videoOutput)
         mpv.setOptionString("profile", "fast")
         mpv.setOptionString("hwdec", if (hardwareDecodingEnabled) "auto" else "no")
-        // mediacodec_embed presents MediaCodec output straight to the Surface, so it draws no OSD
-        // and no libass. Left on mpv's default `sid=auto`, an embedded DVB/teletext track in an
-        // MPEG-TS live stream would be selected and then silently never appear. The docked screen
-        // has no subtitle UI to turn it off with, so say so explicitly.
-        LiveVideoOutputPolicy.subtitleSelectionFor(videoOutput)?.let { sid ->
-            mpv.setOptionString("sid", sid)
-        }
         if (yuv420pEnabled) {
             mpv.setOptionString("vf", "format=yuv420p")
         }
