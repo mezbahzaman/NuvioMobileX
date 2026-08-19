@@ -41,8 +41,6 @@ import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.features.player.ImmersivePlaybackGate
 import com.nuvio.app.features.iptv.XtreamHubScreen
 import com.nuvio.app.features.radar.SportsHubScreen
-import com.nuvio.app.features.iptv.XtreamItemRegistry
-import com.nuvio.app.features.iptv.toMetaPreview
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -1379,7 +1377,7 @@ private fun MainAppContent(
             sourceUrl = resolvedUrl,
             streamTitle = name,
             streamType = "live",
-            providerName = XtreamItemRegistry.accountNameFor(contentId) ?: "IPTV",
+            providerName = com.nuvio.app.core.contracts.LivePlaybackAccess.current().accountNameFor(contentId) ?: "IPTV",
             providerAddonId = "xtream",
             logo = logo,
             contentType = "live",
@@ -1401,13 +1399,13 @@ private fun MainAppContent(
         // A BLANK url is a placeholder, not a real stream: M3U keeps the URL only in the content DB,
         // and Stalker resolves a fresh single-use create_link at play time. Both must fall through to
         // the async resolve — treating "" as present would hand mpv an empty URL.
-        val immediate = url?.takeIf { it.isNotBlank() } ?: XtreamItemRegistry.liveStreamUrlFor(contentId)
+        val immediate = url?.takeIf { it.isNotBlank() } ?: com.nuvio.app.core.contracts.LivePlaybackAccess.current().liveStreamUrlFor(contentId)
         if (immediate != null) {
             launchLiveChannel(contentId, name, logo, immediate, replay)
             return
         }
         coroutineScope.launch {
-            val resolved = XtreamItemRegistry.liveStreamUrlForAsync(contentId) ?: return@launch
+            val resolved = com.nuvio.app.core.contracts.LivePlaybackAccess.current().liveStreamUrlForAsync(contentId) ?: return@launch
             launchLiveChannel(contentId, name, logo, resolved, replay)
         }
     }
@@ -2147,12 +2145,12 @@ private fun MainAppContent(
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
                                             // A live channel (e.g. from Search) has no detail — play it directly.
-                                            if (XtreamItemRegistry.isLiveId(meta.id)) {
+                                            if (com.nuvio.app.core.contracts.IptvContentClassifierAccess.classifier.isLiveId(meta.id)) {
                                                 playLiveXtreamChannel(
                                                     contentId = meta.id,
                                                     name = meta.name,
                                                     logo = meta.logo ?: meta.poster,
-                                                    url = XtreamItemRegistry.get(meta.id)?.streamUrl,
+                                                    url = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(meta.id)?.streamUrl,
                                                 )
                                             } else {
                                                 navController.navigate(DetailRoute(type = meta.type, id = meta.id, title = meta.name))
@@ -2169,7 +2167,7 @@ private fun MainAppContent(
                                         },
                                         onOpenSportsTab = { selectedTab = AppScreenTab.Sports },
                                         onPlayLiveChannel = { contentId ->
-                                            val item = XtreamItemRegistry.get(contentId)
+                                            val item = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(contentId)
                                             playLiveXtreamChannel(
                                                 contentId = contentId,
                                                 name = item?.name ?: "Live TV",
@@ -2185,7 +2183,7 @@ private fun MainAppContent(
                                                 contentId = replay.contentId,
                                                 name = replay.channelName,
                                                 logo = replay.logo,
-                                                url = XtreamItemRegistry.get(replay.contentId)?.streamUrl,
+                                                url = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(replay.contentId)?.streamUrl,
                                                 replay = LiveReplayLaunch(
                                                     programmeTitle = replay.programmeTitle,
                                                     programmeStartMs = replay.programmeStartMs,
@@ -2194,7 +2192,7 @@ private fun MainAppContent(
                                             )
                                         },
                                         onIptvFavoriteChannel = { contentId ->
-                                            XtreamItemRegistry.get(contentId)?.let { item ->
+                                            com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(contentId)?.let { item ->
                                                 // Live favorites belong to Tuvora's own synced library even
                                                 // when Movies/Series are currently sourced from Trakt or Simkl.
                                                 LibraryRepository.toggleLocalSaved(
@@ -2214,13 +2212,13 @@ private fun MainAppContent(
                                             }
                                         },
                                         onLibraryPosterClick = { item ->
-                                            if (XtreamItemRegistry.isLiveId(item.id)) {
+                                            if (com.nuvio.app.core.contracts.IptvContentClassifierAccess.classifier.isLiveId(item.id)) {
                                                 // Live channels have no detail screen — play directly (mpv).
                                                 playLiveXtreamChannel(
                                                     contentId = item.id,
                                                     name = item.name,
                                                     logo = item.logo ?: item.poster,
-                                                    url = XtreamItemRegistry.get(item.id)?.streamUrl,
+                                                    url = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(item.id)?.streamUrl,
                                                 )
                                             } else {
                                                 navController.navigate(DetailRoute(type = item.type, id = item.id, title = item.name))
@@ -4166,7 +4164,7 @@ private fun AppTabHost(
                         onAddPlaylist = onIptvAddProvider,
                         // Recordings are registry-registered VOD ids — native detail pipeline.
                         onOpenRecording = { id ->
-                            XtreamItemRegistry.get(id)?.toMetaPreview()?.let { onPosterClick?.invoke(it) }
+                            com.nuvio.app.core.contracts.LivePlaybackAccess.current().recordingPreview(id)?.let { onPosterClick?.invoke(it) }
                         },
                         // Replays ride the live route with the programme bounds beside the id —
                         // the Live TV screen turns them into a catch-up session (flag + gates).
