@@ -3,13 +3,23 @@ package com.nuvio.app.features.watchprogress
 import com.nuvio.app.features.cloud.TorboxCloudLibraryPosterUrl
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.trakt.parseTraktIsoDateTimeToEpochMs
+import kotlin.test.BeforeTest
 import kotlin.test.Test
+import com.nuvio.app.core.contracts.IptvContentClassifierAccess
+import com.nuvio.app.features.iptv.XtreamContentClassifier
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WatchProgressRulesTest {
+
+    @BeforeTest
+    fun registerPorts() {
+        // The rules call the neutral classifier (isLiveId/isOrphaned); register the real
+        // pure-delegating fork impl so behaviour matches production (FeatureWiring does this at runtime).
+        IptvContentClassifierAccess.register(XtreamContentClassifier)
+    }
 
     @Test
     fun `codec round trips entries in descending updated order`() {
