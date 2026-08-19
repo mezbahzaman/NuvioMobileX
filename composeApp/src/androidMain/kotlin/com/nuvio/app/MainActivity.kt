@@ -110,13 +110,12 @@ class MainActivity : AppCompatActivity() {
         }
         pipRemoteActionReceiver = PipRemoteActionReceiver.register(this)
         SyncClientIdentityStorage.initialize(applicationContext)
-        com.nuvio.app.core.rec.RecEventStorage.initialize(applicationContext)
+        // Fork-feature startup (DB drivers + refresh worker) via the neutral Android startup
+        // registry; the fork references live in the exempt AndroidFeatureWiring, not here (S10c).
+        // All are independent inits, so batching them at one call preserves behaviour.
+        registerAndroidStartup()
+        com.nuvio.app.core.startup.AndroidStartup.runStartup(applicationContext)
         AddonStorage.initialize(applicationContext)
-        com.nuvio.app.features.iptv.XtreamAccountStorage.initialize(applicationContext)
-        com.nuvio.app.features.iptv.M3UFilePicker.initialize(applicationContext)
-        com.nuvio.app.features.iptv.match.MatchDbDriver.initialize(applicationContext)
-        com.nuvio.app.features.iptv.content.IptvContentDbDriver.initialize(applicationContext)
-        com.nuvio.app.features.epg.EpgMirrorDbDriver.initialize(applicationContext)
         AuthStorage.initialize(applicationContext)
         LibraryStorage.initialize(applicationContext)
         WatchedStorage.initialize(applicationContext)
@@ -164,14 +163,12 @@ class MainActivity : AppCompatActivity() {
         PlatformLocalAccountDataCleaner.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.bindActivity(this)
-        // Register the ACTION_OPEN_DOCUMENT launcher for the IPTV M3U-file picker (must happen before
-        // the activity is STARTED, i.e. here in onCreate).
-        com.nuvio.app.features.iptv.M3UFilePicker.bindActivity(this)
+        // IPTV M3U-file picker launcher (registered via AndroidFeatureWiring; must bind in onCreate,
+        // before the activity is STARTED).
+        com.nuvio.app.core.startup.AndroidStartup.bindActivity(this)
         // Same deal for the profile-picture picker (PickVisualMedia).
         com.nuvio.app.features.profiles.AvatarImagePicker.initialize(applicationContext)
         com.nuvio.app.features.profiles.AvatarImagePicker.bindActivity(this)
-        // P3: periodic background refresh of overdue IPTV playlists (idempotent — KEEP).
-        com.nuvio.app.features.iptv.IptvRefreshWorker.schedule(applicationContext)
         handleIncomingAppIntent(intent)
 
         setContent {
