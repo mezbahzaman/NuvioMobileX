@@ -357,6 +357,11 @@ private fun ExoPlayerSurface(
 
     val extractorsFactory = remember {
         DefaultExtractorsFactory()
+            // A direct live `.ts` is a single-program transport stream. The default multi-PMT mode
+            // scans for multiple programs and can mis-select PIDs / mis-frame the ES on some panels,
+            // feeding the decoder malformed access units (macroblocking). StreamVault + TiviMate both
+            // pin SINGLE_PMT for live .ts. (Phase 0, research/iptv-playback-engine-design.md)
+            .setTsExtractorMode(TsExtractor.MODE_SINGLE_PMT)
             .setTsExtractorFlags(LIVE_TS_EXTRACTOR_FLAGS)
             .setTsExtractorTimestampSearchBytes(1500 * TsExtractor.TS_PACKET_SIZE)
     }
@@ -2033,7 +2038,8 @@ private data class LibmpvTrack(
 internal const val LIVE_TS_EXTRACTOR_FLAGS: Int =
     DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
         DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
-        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
+        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+        DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
 
 /** Demuxer cache budget: the forward window plus the seek-back window, in bytes. */
 internal data class MpvDemuxerBytes(val maxBytes: Long, val maxBackBytes: Long)
