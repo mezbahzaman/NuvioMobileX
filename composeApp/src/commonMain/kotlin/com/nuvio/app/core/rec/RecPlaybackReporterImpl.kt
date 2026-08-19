@@ -1,6 +1,7 @@
 package com.nuvio.app.core.rec
 
 import com.nuvio.app.core.contracts.RecPlaybackReporter
+import com.nuvio.app.core.contracts.RecSettings
 
 internal object RecPlaybackReporterImpl : RecPlaybackReporter {
     override fun onProgress(
@@ -20,4 +21,9 @@ internal object RecPlaybackReporterImpl : RecPlaybackReporter {
             durationMs = durationMs,
         )
     }
+}
+
+internal object RecSettingsImpl : RecSettings {
+    override val enabled = RecEventSettings.enabled
+    override fun setEnabled(value: Boolean) = RecEventSettings.setEnabled(value)
 }
