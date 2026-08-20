@@ -209,11 +209,15 @@ fun SearchScreen(
 
                 val normalizedQuery = query.trim()
                 if (normalizedQuery.isBlank()) {
-                    SearchRepository.refreshDiscover(addonsUiState.addons)
+                    SearchRepository.refreshDiscover(
+                        addons = addonsUiState.addons,
+                        forceRefresh = true,
+                    )
                 } else {
                     SearchRepository.search(
                         query = normalizedQuery,
                         addons = addonsUiState.addons,
+                        forceRefresh = true,
                     )
                 }
             }
@@ -305,7 +309,10 @@ fun SearchScreen(
                     onGenreSelected = SearchRepository::selectDiscoverGenre,
                     onRetry = {
                         NetworkStatusRepository.requestRefresh(force = true)
-                        SearchRepository.refreshDiscover(addonsUiState.addons)
+                        SearchRepository.refreshDiscover(
+                            addons = addonsUiState.addons,
+                            forceRefresh = true,
+                        )
                     },
                     watchedKeys = watchedUiState.watchedKeys,
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
@@ -344,6 +351,7 @@ fun SearchScreen(
                                         SearchRepository.search(
                                             query = normalizedQuery,
                                             addons = addonsUiState.addons,
+                                            forceRefresh = true,
                                         )
                                     }
                                 },

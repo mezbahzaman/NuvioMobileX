@@ -281,7 +281,7 @@ class SimklAnimeWatchedResolutionTest {
     // (reason above — kotlin.test.Ignore takes no message on Kotlin/Native)
     @Ignore
     @Test
-    fun `resolveAnimeEpisodeForSimkl returns unchanged for IMDB videoId prefix`() {
+    fun `resolveAnimeEpisodeForSimkl strips anime ids for IMDB videoId prefix`() {
         val reference = TrackingMediaReference(
             kind = TrackingMediaKind.ANIME,
             title = "Some Anime",
@@ -296,8 +296,10 @@ class SimklAnimeWatchedResolutionTest {
 
         val resolved = reference.resolveAnimeEpisodeForSimkl()
 
-        // "tt2560140" prefix is not an anime prefix → unchanged
-        assertEquals(reference, resolved)
+        assertEquals("tt2560140", resolved.ids.imdb)
+        assertNull(resolved.ids.mal)
+        assertEquals(reference.episode, resolved.episode)
+        assertEquals(reference.catalog, resolved.catalog)
     }
 
     // Upstream rot: also fails on pristine origin/cmp-rewrite (3ba9cfd4) — the anime-id
@@ -306,7 +308,7 @@ class SimklAnimeWatchedResolutionTest {
     // (reason above — kotlin.test.Ignore takes no message on Kotlin/Native)
     @Ignore
     @Test
-    fun `resolveAnimeEpisodeForSimkl returns unchanged without catalog videoId`() {
+    fun `resolveAnimeEpisodeForSimkl strips anime ids without catalog videoId`() {
         val reference = TrackingMediaReference(
             kind = TrackingMediaKind.ANIME,
             title = "Some Anime",
@@ -317,7 +319,9 @@ class SimklAnimeWatchedResolutionTest {
 
         val resolved = reference.resolveAnimeEpisodeForSimkl()
 
-        assertEquals(reference, resolved)
+        assertNull(resolved.ids.mal)
+        assertEquals(reference.episode, resolved.episode)
+        assertNull(resolved.catalog)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -448,14 +452,14 @@ class SimklAnimeWatchedResolutionTest {
     // (reason above — kotlin.test.Ignore takes no message on Kotlin/Native)
     @Ignore
     @Test
-    fun `library projection uses anime type for anime entries`() {
+    fun `library projection uses series type for episodic anime entries`() {
         val entry = animeEntry(simklId = 39687, imdb = "tt2560140", mal = 16498)
         val snapshot = SimklSyncSnapshot(entries = listOf(entry))
         val projection = snapshot.toSimklLibraryProjection()
 
         val item = projection.items.singleOrNull { it.id == "tt2560140" }
         assertNotNull(item)
-        assertEquals("anime", item.type)
+        assertEquals("series", item.type)
     }
 
     @Test

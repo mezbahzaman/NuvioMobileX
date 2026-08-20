@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.DisintegratingContainer
+import com.nuvio.app.core.ui.DisintegrationRequest
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.nuvioCardDepth
@@ -64,6 +65,7 @@ import com.nuvio.app.features.cloud.cloudLibraryDisplayArtworkUrl
 import com.nuvio.app.features.tracking.WatchProgressSource
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
+import com.nuvio.app.features.watchprogress.continueWatchingItemKey
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.computeAirDateBadgeText
 import kotlin.math.roundToInt
@@ -234,6 +236,7 @@ internal fun HomeContinueWatchingSection(
     listState: LazyListState = rememberLazyListState(),
     onItemClick: ((ContinueWatchingItem) -> Unit)? = null,
     onItemLongPress: ((ContinueWatchingItem) -> Unit)? = null,
+    disintegrationRequest: DisintegrationRequest<String>? = null,
 ) {
     if (items.isEmpty()) return
 
@@ -251,6 +254,7 @@ internal fun HomeContinueWatchingSection(
             listState = listState,
             onItemClick = onItemClick,
             onItemLongPress = onItemLongPress,
+            disintegrationRequest = disintegrationRequest,
         )
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -267,6 +271,7 @@ internal fun HomeContinueWatchingSection(
                 listState = listState,
                 onItemClick = onItemClick,
                 onItemLongPress = onItemLongPress,
+                disintegrationRequest = disintegrationRequest,
             )
         }
     }
@@ -286,14 +291,15 @@ private fun HomeContinueWatchingSectionContent(
     listState: LazyListState,
     onItemClick: ((ContinueWatchingItem) -> Unit)?,
     onItemLongPress: ((ContinueWatchingItem) -> Unit)?,
+    disintegrationRequest: DisintegrationRequest<String>?,
 ) {
     key(dataSourceKey) {
         val disintegration = remember {
             ScopedDisintegrationTracker<WatchProgressSource, String, ContinueWatchingItem>(
-                itemKey = ContinueWatchingItem::videoId,
+                itemKey = ::continueWatchingItemKey,
             )
         }
-        val displayEntries = disintegration.sync(dataSourceKey, items)
+        val displayEntries = disintegration.sync(dataSourceKey, items, disintegrationRequest)
 
         NuvioShelfSection(
             title = title ?: stringResource(Res.string.compose_settings_page_continue_watching),
@@ -634,12 +640,12 @@ private fun ContinueWatchingCard(
         )
     }
     val todayIsoDate = CurrentDateProvider.todayIsoDate()
-    val compactAirDateText = if (item.progressFraction <= 0f && item.seasonNumber != null && item.episodeNumber != null) {
-        computeAirDateBadgeText(item.released, todayIsoDate, compact = true)
+    val airDateText = if (item.progressFraction <= 0f && item.seasonNumber != null && item.episodeNumber != null) {
+        computeAirDateBadgeText(item.released, todayIsoDate)
     } else {
         null
     }
-    val preferBackdropForNextUp = item.isNextUp && compactAirDateText != null && !item.isReleaseAlert
+    val preferBackdropForNextUp = item.isNextUp && airDateText != null && !item.isReleaseAlert
     val imageUrl = item.continueWatchingCardArtworkUrl(
         useEpisodeThumbnails = useEpisodeThumbnails,
         preferBackdropForNextUp = preferBackdropForNextUp,
@@ -650,8 +656,8 @@ private fun ContinueWatchingCard(
     } else {
         null
     }
-    val episodeTitle = item.episodeTitle?.trim()?.takeIf { it.isNotBlank() } ?: compactAirDateText
-    val badgeText = continueWatchingCardBadgeText(item = item, compactAirDateText = compactAirDateText)
+    val episodeTitle = item.episodeTitle?.trim()?.takeIf { it.isNotBlank() } ?: airDateText
+    val badgeText = continueWatchingCardBadgeText(item = item, airDateText = airDateText)
     val backgroundColor = MaterialTheme.colorScheme.background
     val badgeBackground = when {
         item.isNewSeasonRelease -> ContinueWatchingNewSeasonBadgeColor
@@ -796,7 +802,7 @@ private fun ContinueWatchingCard(
 @Composable
 private fun continueWatchingCardBadgeText(
     item: ContinueWatchingItem,
-    compactAirDateText: String?,
+    airDateText: String?,
 ): String {
     if (item.progressFraction > 0f) {
         if (item.durationMs <= 0L) {
@@ -823,7 +829,7 @@ private fun continueWatchingCardBadgeText(
     return when {
         item.isReleaseAlert && item.isNewSeasonRelease -> stringResource(Res.string.cw_new_season)
         item.isReleaseAlert -> stringResource(Res.string.cw_new_episode)
-        compactAirDateText != null -> compactAirDateText
+        airDateText != null -> airDateText
         else -> stringResource(Res.string.home_continue_watching_up_next)
     }
 }
@@ -899,7 +905,7 @@ private fun ContinueWatchingWideCard(
                                 else stringResource(Res.string.cw_new_episode)
                             }
                             else -> {
-                                computeAirDateBadgeText(item.released, todayIsoDate, compact = isCompact)
+                                computeAirDateBadgeText(item.released, todayIsoDate)
                                     ?: stringResource(Res.string.home_continue_watching_up_next)
                             }
                         }
@@ -1014,7 +1020,7 @@ private fun ContinueWatchingPosterCard(
                             else stringResource(Res.string.cw_new_episode)
                         }
                         else -> {
-                            computeAirDateBadgeText(item.released, todayIsoDate, compact = true)
+                            computeAirDateBadgeText(item.released, todayIsoDate)
                                 ?: stringResource(Res.string.home_continue_watching_up_next)
                         }
                     }

@@ -182,7 +182,8 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
         outlineSize: Float,
         bold: Bool,
         fontSize: Float,
-        subPos: Int32
+        subPos: Int32,
+        stripSdh: Bool
     ) {
         playerVC?.applySubtitleStyle(
             textColor: textColor,
@@ -191,7 +192,8 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
             outlineSize: outlineSize,
             bold: bold,
             fontSize: fontSize,
-            subPos: Int(subPos)
+            subPos: Int(subPos),
+            stripSdh: stripSdh
         )
     }
 
@@ -933,7 +935,8 @@ final class MPVPlayerViewController: UIViewController {
         outlineSize: Float,
         bold: Bool,
         fontSize: Float,
-        subPos: Int
+        subPos: Int,
+        stripSdh: Bool
     ) {
         guard mpv != nil else { return }
 
@@ -952,6 +955,8 @@ final class MPVPlayerViewController: UIViewController {
 
         var position = Int64(subPos)
         checkError(mpv_set_property(mpv, "sub-pos", MPV_FORMAT_INT64, &position))
+        setStringProperty("sub-filter-sdh", stripSdh ? "yes" : "no")
+        setStringProperty("sub-filter-sdh-harder", stripSdh ? "yes" : "no")
     }
 
     func destroyPlayer() {

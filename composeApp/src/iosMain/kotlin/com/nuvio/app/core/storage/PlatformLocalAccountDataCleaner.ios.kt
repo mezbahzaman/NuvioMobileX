@@ -1,6 +1,10 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package com.nuvio.app.core.storage
 
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSHomeDirectory
 import com.nuvio.app.features.profiles.MAX_PROFILES
 
 internal actual object PlatformLocalAccountDataCleaner {
@@ -9,6 +13,7 @@ internal actual object PlatformLocalAccountDataCleaner {
         "avatar_catalog_payload",
         "anonymous_user_id",
         "nuvio.downloads.live_status.payload",
+        "member_access_payload",
     )
     private val profilePinCachePrefixes = listOf("profile_pin_cache_")
     private val profileIndexedPrefixes = listOf(
@@ -91,6 +96,15 @@ internal actual object PlatformLocalAccountDataCleaner {
             ) {
                 defaults.removeObjectForKey(keyString)
             }
+        }
+
+        val scraperCodePath = "${NSHomeDirectory()}/Library/Application Support/nuvio_plugin_scrapers"
+        if (NSFileManager.defaultManager.fileExistsAtPath(scraperCodePath)) {
+            NSFileManager.defaultManager.removeItemAtPath(scraperCodePath, null)
+        }
+        val membershipPath = "${NSHomeDirectory()}/Library/Application Support/NuvioMembership"
+        if (NSFileManager.defaultManager.fileExistsAtPath(membershipPath)) {
+            NSFileManager.defaultManager.removeItemAtPath(membershipPath, null)
         }
     }
 }

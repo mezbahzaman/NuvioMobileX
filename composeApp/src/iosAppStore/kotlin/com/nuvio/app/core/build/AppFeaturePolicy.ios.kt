@@ -5,6 +5,8 @@ actual object AppFeaturePolicy {
     // App Store builds hide the addon system entirely (guideline 5.2.3).
     actual val addonsEnabled: Boolean = false
     actual val supportersContributorsPageEnabled: Boolean = false
+    actual val donationActionsEnabled: Boolean = false
+    actual val donationProgressEnabled: Boolean = true
     actual val accountDeletionEnabled: Boolean = true
     actual val personalMediaAddonCopyEnabled: Boolean = true
     actual val p2pEnabled: Boolean = false
@@ -14,4 +16,5 @@ actual object AppFeaturePolicy {
     actual val imdbRatingLogoEnabled: Boolean = false
     actual val debugBackendSwitcherEnabled: Boolean = AppBuildConfig.IS_DEBUG_BUILD
     actual val mediaPlaybackForegroundServiceEnabled: Boolean = false
+    actual val customServerConnectionsEnabled: Boolean = false
 }

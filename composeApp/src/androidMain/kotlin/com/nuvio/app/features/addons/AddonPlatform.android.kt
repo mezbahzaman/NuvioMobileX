@@ -12,6 +12,7 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.network_empty_response_body
 import nuvio.composeapp.generated.resources.network_request_failed_http
 import org.jetbrains.compose.resources.getString
+import okhttp3.Cache
 import okhttp3.ResponseBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -19,6 +20,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.Proxy
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import kotlin.text.Charsets
 import java.util.concurrent.TimeUnit
@@ -81,16 +83,39 @@ private fun parseEnabledStateLine(line: String): Pair<String, Boolean>? {
     return url to enabled
 }
 
-private val addonHttpClient = OkHttpClient.Builder()
-    .dns(IPv4FirstDns())
-    .connectTimeout(60, TimeUnit.SECONDS)
-    .readTimeout(60, TimeUnit.SECONDS)
-    .writeTimeout(60, TimeUnit.SECONDS)
-    .followRedirects(true)
-    .followSslRedirects(true)
-    .addInterceptor(SentryNetworkBreadcrumbInterceptor())
-    .proxy(Proxy.NO_PROXY)
-    .build()
+internal object AddonHttpClientProvider {
+    private const val cacheSizeBytes = 50L * 1024L * 1024L
+    private var client = buildAddonHttpClient()
+
+    fun initialize(context: Context) {
+        if (client.cache != null) return
+        client = buildAddonHttpClient(
+            cache = Cache(
+                directory = File(context.cacheDir, "addon_http"),
+                maxSize = cacheSizeBytes,
+            ),
+        )
+    }
+
+    fun get(): OkHttpClient = client
+}
+
+private fun buildAddonHttpClient(cache: Cache? = null): OkHttpClient =
+    OkHttpClient.Builder()
+        .dns(IPv4FirstDns())
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .addInterceptor(SentryNetworkBreadcrumbInterceptor())
+        .proxy(Proxy.NO_PROXY)
+        .apply {
+            if (cache != null) {
+                cache(cache)
+            }
+        }
+        .build()
 
 private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -198,7 +223,7 @@ private fun responseTooLarge(declaredLength: Long): ResponseTooLargeException {
  * [addonHttpClient] — DNS must never break a fetch.
  */
 private fun clientForDns(dnsProvider: String?): OkHttpClient =
-    runCatching { PlaylistDns.clientFor(dnsProvider, addonHttpClient) }.getOrNull() ?: addonHttpClient
+    runCatching { PlaylistDns.clientFor(dnsProvider, AddonHttpClientProvider.get()) }.getOrNull() ?: AddonHttpClientProvider.get()
 
 private suspend fun executeTextRequest(
     method: String,
@@ -308,9 +333,9 @@ actual suspend fun httpRequestRaw(
         }.build()
 
         val client = if (followRedirects) {
-            addonHttpClient
+            AddonHttpClientProvider.get()
         } else {
-            addonHttpClient.newBuilder()
+            AddonHttpClientProvider.get().newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build()
