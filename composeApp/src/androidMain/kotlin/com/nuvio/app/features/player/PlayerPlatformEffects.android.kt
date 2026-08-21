@@ -90,8 +90,13 @@ actual fun ManagePlayerPictureInPicture(
     }
 }
 
-actual fun platformSupportsPictureInPicture(): Boolean =
-    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+actual fun platformSupportsPictureInPicture(): Boolean {
+    val context = AndroidPictureInPictureContext.appContext ?: return false
+    return pictureInPictureSupported(
+        Build.VERSION.SDK_INT,
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE),
+    )
+}
 
 actual fun isPictureInPictureBlockedBySystem(): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false

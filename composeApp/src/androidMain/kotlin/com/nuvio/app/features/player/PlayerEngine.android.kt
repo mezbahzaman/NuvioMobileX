@@ -685,7 +685,7 @@ private fun ExoPlayerSurface(
                         "positionMs=${exoPlayer.currentPosition.coerceAtLeast(0L)} " +
                         "bufferedMs=${exoPlayer.bufferedPosition.coerceAtLeast(0L)} " +
                         "durationMs=${exoPlayer.duration.coerceAtLeast(0L)} " +
-                        "bufferedPercent=${exoPlayer.bufferedPercentage} playWhenReady=${exoPlayer.playWhenReady} " +
+                        "bufferedPercent=${BufferedPercent.of(exoPlayer.bufferedPosition, exoPlayer.duration)} playWhenReady=${exoPlayer.playWhenReady} " +
                         "terminalError=${exoPlayer.playerError?.errorCodeName ?: "none"}",
                 )
                 if (playbackState == Player.STATE_READY) {
