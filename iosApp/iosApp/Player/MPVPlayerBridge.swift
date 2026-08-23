@@ -1041,8 +1041,11 @@ final class MPVPlayerViewController: UIViewController {
 
         // Live-freeze detection: the picture can stop while audio plays on, which leaves every
         // other field here looking healthy. `estimated-vf-fps` is the one signal that stops too.
+        // Advanced at read time here (this poll), which is the correct pattern — a callback-driven
+        // count plateaus once the estimate settles. Floor of 1.0 fps matches Kotlin's
+        // MpvVideoOutputSignal.MIN_LIVE_FPS so all platforms agree on "the picture is alive".
         hasVideoTrack = !(getString("video-format") ?? "").isEmpty
-        if getDouble("estimated-vf-fps") > 0 { videoFrameTicks &+= 1 }
+        if getDouble("estimated-vf-fps") >= 1 { videoFrameTicks &+= 1 }
         // VO-level counters for the playback snapshot; see the property declarations.
         voDroppedFrames = Int64(getInt("frame-drop-count"))
         voDelayedFrames = Int64(getInt("vo-delayed-frame-count"))

@@ -72,6 +72,7 @@ import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.CaptionStyleCompat
 import com.nuvio.app.R
 import com.nuvio.app.AppExitReporter
+import com.nuvio.app.core.analytics.MpvVideoOutputSignal
 import com.nuvio.app.core.contracts.MemoryPortAccess
 import com.nuvio.app.core.contracts.MemoryTier
 import com.nuvio.app.features.streams.normalizeStreamType
@@ -1520,15 +1521,24 @@ private class NuvioLibmpvView(
     @Volatile private var obsAudioBitrate: Double? = null
 
     /**
-     * Counts samples where mpv reported the video output running. Incremented on the mpv event
-     * thread — never read through mpv from the main thread, which is what keeps `snapshot()`
-     * mpv-free (the ANR fix).
+     * The last mirrored `estimated-vf-fps` value (a rate). The live-freeze tick [obsVideoFrameTicks]
+     * is derived from this at READ time (in [snapshot], off the main thread's mpv core), NOT by
+     * incrementing on the property-change callback: that count plateaus during healthy steady-state
+     * playback exactly as on a real freeze (device-proven, review pass 3 F1/F2) and shipped a false
+     * VIDEO_STALLED / spurious live reconnect. See [MpvVideoOutputSignal].
+     */
+    @Volatile private var obsEstimatedVfFps = 0.0
+
+    /**
+     * Monotonic "the picture is alive" counter fed to [LivePlaybackFreezePolicy] as
+     * videoProgressTicks — advanced once per [snapshot] while [obsEstimatedVfFps] proves frames are
+     * flowing, held when they stop. Read off the shadow on the main thread, never through mpv (the
+     * ANR fix).
      *
-     * CAVEAT: `estimated-vf-fps` measures the *filter chain* output, so it proves decoding is
-     * still producing frames rather than that the VO presented them. It catches the reported
-     * "picture frozen, audio playing" wedge; a VO that stops presenting frames a healthy decoder
-     * keeps producing would slip past it. Verify against a genuinely frozen channel before
-     * trusting it as the only signal.
+     * CAVEAT: `estimated-vf-fps` measures the *filter chain* output, so it proves decoding rather
+     * than that the VO presented the frame; a VO that stops presenting frames a healthy decoder
+     * keeps producing would slip past it. The state signals (core-idle / paused-for-cache) and the
+     * END_FILE error path backstop that residual case.
      */
     @Volatile private var obsVideoFrameTicks = 0L
 
@@ -1557,10 +1567,10 @@ private class NuvioLibmpvView(
                 "video-params" -> obsVideoParams = null
                 "video-bitrate" -> obsVideoBitrate = null
                 "audio-bitrate" -> obsAudioBitrate = null
-                // Deliberately NOT reset: the freeze policy treats any change in this counter as
-                // a rendered frame, so zeroing it when the property goes unavailable would read
-                // as the picture coming back. loadSource rebases it instead.
-                "estimated-vf-fps" -> Unit
+                // Unavailable means no active video output — mirror it as zero fps so the read-time
+                // liveness tick (see [snapshot]) holds, i.e. a freeze the policy can see, rather than
+                // reading the last healthy rate forever.
+                "estimated-vf-fps" -> obsEstimatedVfFps = 0.0
                 // Unavailable means no active VO — the same 0 a fresh core reports.
                 "frame-drop-count" -> obsVoDroppedFrames = 0L
                 "vo-delayed-frame-count" -> obsVoDelayedFrames = 0L
@@ -1593,7 +1603,8 @@ private class NuvioLibmpvView(
                 "speed" -> obsSpeed = value
                 "video-bitrate" -> obsVideoBitrate = value.takeIf { it > 0.0 }
                 "audio-bitrate" -> obsAudioBitrate = value.takeIf { it > 0.0 }
-                "estimated-vf-fps" -> if (value > 0.0) obsVideoFrameTicks++
+                // Mirror the value only; the liveness tick is advanced at read time in [snapshot].
+                "estimated-vf-fps" -> obsEstimatedVfFps = value
             }
         }
 
@@ -1824,6 +1835,10 @@ private class NuvioLibmpvView(
         val isCacheBuffering = cacheBufferingState != null && cacheBufferingState in 0 until 100
         val isLoading = pausedForCache ||
             (!paused && !ended && (seeking || isCacheBuffering || (idle && durationMs <= 0L)))
+        // Advance the video-liveness tick at READ time from the mirrored fps (see MpvVideoOutputSignal):
+        // estimated-vf-fps stops emitting once steady, so a callback-driven count would plateau on
+        // healthy playback and read as a freeze. This matches iOS/desktop, which already poll it.
+        obsVideoFrameTicks = MpvVideoOutputSignal.advance(obsVideoFrameTicks, obsEstimatedVfFps)
         return PlayerPlaybackSnapshot(
             isLoading = isLoading,
             isPlaying = !paused && !isLoading && !idle && !ended,
