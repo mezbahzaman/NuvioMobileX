@@ -526,7 +526,13 @@ kotlin {
                 implementation("io.github.peerless2012:ass-media:0.4.0-beta01")
                 implementation(libs.ktor.client.okhttp)
                 implementation(libs.sentry.android)
-                implementation(libs.androidx.media3.exoplayer.hls)
+                // media3 core, common and hls come from the fork AARs (libs/lib-exoplayer-,
+                // lib-common-, lib-exoplayer-hls-release.aar via the lib-*.aar fileTree), NOT the
+                // stock modules (all three excluded in configurations.all): mixing a stock module
+                // with the fork core crashes on the ExoPlayer live path (getBandwidthMeter /
+                // NuvioEngineConfig skews — see the configurations.all note). dash/smoothstreaming/
+                // rtsp/session/container/extractor/datasource below stay stock and resolve against
+                // the fork common (a superset of stock 1.11.0 common).
                 implementation(libs.androidx.media3.exoplayer.dash)
                 implementation(libs.androidx.media3.exoplayer.smoothstreaming)
                 implementation(libs.androidx.media3.exoplayer.rtsp)
@@ -537,6 +543,18 @@ kotlin {
                 implementation(libs.androidx.media3.common)
                 implementation(libs.androidx.media3.container)
                 implementation(libs.androidx.media3.extractor)
+                // Guava (ImmutableList etc.) is a compile dependency of media3-common. It used to
+                // arrive transitively, but the fork common AAR (a flat file) carries no POM, so
+                // excluding stock media3-common above dropped it. Re-declare it at the exact version +
+                // exclusions media3-common 1.11.0 used, so nothing else on the classpath shifts.
+                implementation("com.google.guava:guava:33.3.1-android") {
+                    exclude(group = "com.google.j2objc", module = "j2objc-annotations")
+                    exclude(group = "org.checkerframework", module = "checker-compat-qual")
+                    exclude(group = "com.google.code.findbugs", module = "jsr305")
+                    exclude(group = "org.codehaus.mojo", module = "animal-sniffer-annotations")
+                    exclude(group = "org.checkerframework", module = "checker-qual")
+                    exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+                }
                 implementation(libs.mpv.android.lib)
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
                 implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("lib-*.aar"))))
@@ -612,6 +630,22 @@ configurations.matching { it.name == "iosMainImplementation" }.configureEach {
 }
 
 configurations.all {
+    // The custom Nuvio engine fork replaces media3 core + common + hls (see libs/lib-*-release.aar,
+    // the matched 1.11.0 rebuild in media3-engine/out/1.11.0). Two skews crash the app if a stock
+    // module is mixed with the fork core, BOTH device-confirmed on an S24 Ultra (xsc.loruhon.com) on
+    // the ExoPlayer live path:
+    //  1. stock media3-exoplayer-hls calls getBandwidthMeter() on the core's BaseMediaSource, which
+    //     the fork core does not expose -> NoSuchMethodError on every HLS prepare (2026-08-22).
+    //  2. the fork core's DefaultAllocator reads androidx.media3.common.NuvioEngineConfig (a fork
+    //     addition), which stock media3-common lacks -> NoClassDefFoundError building the ExoPlayer
+    //     LoadControl, i.e. before playback even starts (2026-08-23). The nuvio-engine AAR ships a
+    //     same-named class under com.nuvio.engine, NOT the androidx.media3.common package the core
+    //     references, so it does not satisfy the link.
+    // Exclude the stock core/common/hls modules and use the fork's own AARs (libs/lib-exoplayer-,
+    // lib-common-, lib-exoplayer-hls-release.aar), which are built as a matched set against each
+    // other. media3-ui is excluded because the fork does not ship it and Compose uses none of it.
     exclude(group = "androidx.media3", module = "media3-exoplayer")
+    exclude(group = "androidx.media3", module = "media3-exoplayer-hls")
+    exclude(group = "androidx.media3", module = "media3-common")
     exclude(group = "androidx.media3", module = "media3-ui")
 }
