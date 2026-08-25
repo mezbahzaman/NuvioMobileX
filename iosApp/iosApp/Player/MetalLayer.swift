@@ -56,6 +56,10 @@ class MetalLayer: CAMetalLayer {
     private var storedIsDrawableCaptureArmed = false
     private var storedCapturesWithoutPresentation = false
     private var pendingDrawable: CAMetalDrawable?
+    // A drawable size handed over from the MAIN thread (layout during a fullscreen/orientation
+    // resize) to be applied on the render thread inside nextDrawable(). See setPendingDrawableSize.
+    private var pendingDrawableSize: CGSize?
+    private var didLogRenderThread = false
     private let captureLock = NSLock()
 
     private static let failureThresholdBeforeSuspension = 2
@@ -119,9 +123,43 @@ class MetalLayer: CAMetalLayer {
         withExtendedLifetime(stale) {}
     }
 
+    /// Hand over a new drawable size from the MAIN thread (layout during a fullscreen/orientation
+    /// resize). We deliberately do NOT write `super.drawableSize` here: mpv's MoltenVK context
+    /// (single Vulkan queue — vulkan-queue-count 1, async off) reads drawableSize and recreates its
+    /// swapchain on its OWN render thread, and mutating the CAMetalLayer's drawable pool from Main
+    /// concurrently corrupts the Metal heap (iOS 26 traps it as EXC_BREAKPOINT
+    /// _xzm_corruption_detected). The pending size is applied inside nextDrawable(), on that same
+    /// render thread, so the write and mpv's read are serialized onto one thread.
+    func setPendingDrawableSize(_ size: CGSize) {
+        captureLock.lock()
+        pendingDrawableSize = size
+        captureLock.unlock()
+    }
+
+    /// Applies any pending drawable size. MUST be called with `captureLock` held, from nextDrawable()
+    /// (mpv's render thread). Writes `super.drawableSize` directly to bypass the clamping override.
+    private func applyPendingDrawableSizeLocked() {
+        guard let size = pendingDrawableSize else { return }
+        pendingDrawableSize = nil
+        if Int(size.width) > 1 && Int(size.height) > 1 {
+            super.drawableSize = size
+        }
+    }
+
     override func nextDrawable() -> CAMetalDrawable? {
         captureLock.lock()
         nextDrawableCallCount &+= 1
+        // Apply a resize handed over from Main on THIS (render) thread, before acquiring a drawable,
+        // so the swapchain is only ever resized here. Both suspended and normal paths fall through
+        // this point while the lock is held.
+        applyPendingDrawableSizeLocked()
+        if !didLogRenderThread {
+            didLogRenderThread = true
+            InAppLogBridge.shared.info(
+                tag: "Player/iOS",
+                message: "MetalLayer.nextDrawable render thread=\(Thread.current)"
+            )
+        }
         if isRenderingSuspended {
             let now = CACurrentMediaTime()
             let shouldProbe = now - lastSuspendedProbeTime >= Self.suspendedRetryInterval

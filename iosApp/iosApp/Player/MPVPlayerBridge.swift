@@ -576,8 +576,13 @@ final class MPVPlayerViewController: UIViewController {
         metalLayer.position = .zero
         metalLayer.bounds = CGRect(origin: .zero, size: bounds.size)
         if drawableSize != lastAppliedDrawableSize {
-            // mpv's moltenvk context polls drawableSize and resizes its swapchain.
-            metalLayer.drawableSize = drawableSize
+            // mpv's moltenvk context polls drawableSize and resizes its swapchain on ITS OWN render
+            // thread. Writing drawableSize here (Main, during the fullscreen/orientation resize) races
+            // that read and corrupts the Metal heap (iOS 26 EXC_BREAKPOINT _xzm_corruption_detected).
+            // Hand the size to MetalLayer, which applies it inside nextDrawable() on the render thread.
+            // contentsScale/position/bounds stay on Main below — they are display geometry and do not
+            // size the drawable pool once drawableSize is explicit.
+            metalLayer.setPendingDrawableSize(drawableSize)
             lastAppliedDrawableSize = drawableSize
         }
         CATransaction.commit()
