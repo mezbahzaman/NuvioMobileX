@@ -169,7 +169,21 @@ actual fun PlatformPlayerSurface(
     // genuinely cannot sustain on ExoPlayer.
     // ponytail: if a codec class regresses on ExoPlayer, narrow the force back BY CODEC, not by "live".
     var activeEngine by remember(playerSourceKey, playerSettings.androidPlaybackEngine) {
-        mutableStateOf(playerSettings.androidPlaybackEngine.initialAndroidEngine())
+        val base = playerSettings.androidPlaybackEngine.initialAndroidEngine()
+        // Fix 2 (telemetry-derived, 2026-08-25): open live on libmpv on the hardware decoders that
+        // video-stall on live TS far above the fleet baseline (MediaTek MT8696, Amlogic Onn 4K
+        // Streaming Box), even when the resolved engine is ExoPlayer. Live only; device-gated
+        // (LiveHardwareDecoderPolicy, narrow + tunable). Android already defaults to libmpv, so this
+        // only bites the Auto/ExoPlayer users. NuvioTV made the same change.
+        val gated = if (base == ResolvedAndroidPlaybackEngine.ExoPlayer &&
+            normalizeStreamType(streamType) == "live" &&
+            LiveHardwareDecoderProbe.preferLibmpvForLive()
+        ) {
+            ResolvedAndroidPlaybackEngine.Libmpv
+        } else {
+            base
+        }
+        mutableStateOf(gated)
     }
 
     when (activeEngine) {
