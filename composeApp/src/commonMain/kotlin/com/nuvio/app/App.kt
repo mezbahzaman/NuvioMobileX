@@ -202,6 +202,7 @@ import com.nuvio.app.features.profiles.ProfileEditScreen
 import com.nuvio.app.features.profiles.ProfileBackgroundBackdrop
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.ProfileSelectionScreen
+import com.nuvio.app.features.profiles.ProfileSwitchController
 import com.nuvio.app.features.profiles.ProfileSwitcherTab
 import com.nuvio.app.features.profiles.profileAvatarImageUrl
 import com.nuvio.app.features.search.SearchScreen
@@ -436,9 +437,15 @@ private enum class AppGateScreen {
     Loading,
     Auth,
     ProfileSelection,
+    ProfileSwitching,
     ProfileEdit,
     Main,
 }
+
+private data class PendingProfileSwitch(
+    val profile: NuvioProfile,
+    val syncOnEnter: Boolean,
+)
 
 private object NativeAppGateRequests {
     val profileSelection = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -586,6 +593,7 @@ fun App(
         var editingProfile by remember { mutableStateOf<NuvioProfile?>(null) }
         var isNewProfile by remember { mutableStateOf(false) }
         var autoSkipProfileSelection by rememberSaveable { mutableStateOf(false) }
+        var pendingProfileSwitch by remember { mutableStateOf<PendingProfileSwitch?>(null) }
 
         // Settings "Sign In" button (signed-out users stay in the app via cached profiles,
         // so nothing else ever routes back to the auth screen).
@@ -624,6 +632,12 @@ fun App(
                 ?.takeUnless { it.pinEnabled }
         }
 
+        fun requestProfileSwitch(profile: NuvioProfile, syncOnEnter: Boolean) {
+            autoSkipProfileSelection = false
+            pendingProfileSwitch = PendingProfileSwitch(profile, syncOnEnter)
+            gateScreen = AppGateScreen.ProfileSwitching.name
+        }
+
         fun enterProfileGate(profiles: List<NuvioProfile>, syncOnEnter: Boolean) {
             if (profiles.isEmpty()) {
                 autoSkipProfileSelection = true
@@ -632,12 +646,7 @@ fun App(
             }
 
             rememberedStartupProfile(profiles)?.let { profile ->
-                ProfileRepository.selectProfile(profile.profileIndex)
-                if (syncOnEnter) {
-                    SyncManager.pullAllForProfile(profile.profileIndex)
-                }
-                gateScreen = AppGateScreen.Main.name
-                autoSkipProfileSelection = false
+                requestProfileSwitch(profile, syncOnEnter)
                 return
             }
 
@@ -648,18 +657,42 @@ fun App(
                     gateScreen = AppGateScreen.ProfileSelection.name
                     return
                 }
-                ProfileRepository.selectProfile(onlyProfile.profileIndex)
-                if (syncOnEnter) {
-                    SyncManager.pullAllForProfile(onlyProfile.profileIndex)
-                }
-                gateScreen = AppGateScreen.Main.name
-                autoSkipProfileSelection = false
+                requestProfileSwitch(onlyProfile, syncOnEnter)
             } else {
                 gateScreen = AppGateScreen.ProfileSelection.name
             }
         }
 
+        // If the switch request is cleared while still parked on the ProfileSwitching overlay
+        // (e.g. a recomposition dropped the pending request), fall back to the plain loader.
+        LaunchedEffect(gateScreen, pendingProfileSwitch) {
+            if (gateScreen == AppGateScreen.ProfileSwitching.name && pendingProfileSwitch == null) {
+                gateScreen = AppGateScreen.Loading.name
+            }
+        }
+
+        // The switch runs OFF the main thread here (switchToProfile suspends onto Dispatchers.Default
+        // under a mutex), then warms the profile-bound repos, then pulls — and only after that awaited
+        // sequence returns do we reveal Home. Awaiting the switch before the pull also prevents the
+        // AddonRepository.onProfileChanged reset from racing (and wiping) a fast pullFromServer.
+        LaunchedEffect(pendingProfileSwitch) {
+            val request = pendingProfileSwitch ?: return@LaunchedEffect
+            runCatching {
+                ProfileSwitchController.switch(request.profile.profileIndex, request.syncOnEnter)
+            }.onSuccess {
+                pendingProfileSwitch = null
+                autoSkipProfileSelection = false
+                gateScreen = AppGateScreen.Main.name
+            }.onFailure {
+                pendingProfileSwitch = null
+                autoSkipProfileSelection = false
+                gateScreen = AppGateScreen.ProfileSelection.name
+            }
+        }
+
         LaunchedEffect(authState, networkStatusUiState.condition, profileState.profiles) {
+            if (gateScreen == AppGateScreen.ProfileSwitching.name) return@LaunchedEffect
+
             val cachedProfiles = profileState.profiles
             val hasCachedProfileAccess =
                 cachedProfiles.isNotEmpty() &&
@@ -723,10 +756,10 @@ fun App(
                 gateScreen == AppGateScreen.ProfileSelection.name
             ) {
                 rememberedStartupProfile(profileState.profiles)?.let { profile ->
-                    ProfileRepository.selectProfile(profile.profileIndex)
-                    SyncManager.pullAllForProfile(profile.profileIndex)
-                    gateScreen = AppGateScreen.Main.name
-                    autoSkipProfileSelection = false
+                    requestProfileSwitch(
+                        profile = profile,
+                        syncOnEnter = authState is AuthState.Authenticated,
+                    )
                     return@LaunchedEffect
                 }
 
@@ -735,10 +768,10 @@ fun App(
                 val onlyProfile = profileState.profiles.first()
                 if (onlyProfile.pinEnabled) return@LaunchedEffect
 
-                ProfileRepository.selectProfile(onlyProfile.profileIndex)
-                SyncManager.pullAllForProfile(onlyProfile.profileIndex)
-                gateScreen = AppGateScreen.Main.name
-                autoSkipProfileSelection = false
+                requestProfileSwitch(
+                    profile = onlyProfile,
+                    syncOnEnter = authState is AuthState.Authenticated,
+                )
             }
         }
 
@@ -751,7 +784,8 @@ fun App(
             },
         ) { currentGate ->
             when (currentGate) {
-                AppGateScreen.Loading.name -> {
+                AppGateScreen.Loading.name,
+                AppGateScreen.ProfileSwitching.name -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -772,11 +806,10 @@ fun App(
                     }
                     ProfileSelectionScreen(
                         onProfileSelected = { profile ->
-                            ProfileRepository.selectProfile(profile.profileIndex)
-                            if (authState is AuthState.Authenticated) {
-                                SyncManager.pullAllForProfile(profile.profileIndex)
-                            }
-                            gateScreen = AppGateScreen.Main.name
+                            requestProfileSwitch(
+                                profile = profile,
+                                syncOnEnter = authState is AuthState.Authenticated,
+                            )
                         },
                         onEditProfile = { profile ->
                             editingProfile = profile
@@ -1105,7 +1138,10 @@ private fun MainAppContent(
         }
     }
 
-    var profileSwitchLoading by remember { mutableStateOf(false) }
+    // Loading overlay is driven off the single-flight switch state so every switch site (native
+    // switcher, in-app sheet) shows/hides it consistently — no per-call-site boolean to get wrong.
+    val switchingProfile by ProfileSwitchController.switchingTo.collectAsStateWithLifecycle()
+    val profileSwitchLoading = switchingProfile != null
 
     LaunchedEffect(nativeProfileSwitcherController, ownsAppRuntime) {
         if (!ownsAppRuntime) return@LaunchedEffect
@@ -1113,10 +1149,8 @@ private fun MainAppContent(
             val profile = ProfileRepository.state.value.profiles
                 .firstOrNull { it.profileIndex == profileIndex }
                 ?: return@collectLatest
-            profileSwitchLoading = true
             activateTab(AppScreenTab.Home)
-            ProfileRepository.selectProfile(profile.profileIndex)
-            SyncManager.pullAllForProfile(profile.profileIndex)
+            ProfileSwitchController.switch(profile.profileIndex, syncOnEnter = true)
         }
     }
 
@@ -2080,11 +2114,13 @@ private fun MainAppContent(
                         val navBarHazeState = rememberHazeState()
                         val navBarStyleSetting by remember { ThemeSettingsRepository.navBarStyle }.collectAsStateWithLifecycle()
                         val onProfileSelected: (NuvioProfile) -> Unit = { profile ->
-                            profileSwitchLoading = true
                             NativeTabBridge.publishTabBarVisible(false)
                             activateTab(AppScreenTab.Home)
-                            ProfileRepository.selectProfile(profile.profileIndex)
-                            com.nuvio.app.core.sync.SyncManager.pullAllForProfile(profile.profileIndex)
+                            // The controller's tryLock rejects the 2nd+ rapid tap, so stacking
+                            // taps can no longer spin up concurrent switch/warm/pull pipelines.
+                            coroutineScope.launch {
+                                ProfileSwitchController.switch(profile.profileIndex, syncOnEnter = true)
+                            }
                         }
 
                         Scaffold(
@@ -4045,15 +4081,6 @@ private fun MainAppContent(
                     profile = launchOverlayProfile,
                     modifier = Modifier.fillMaxSize(),
                 )
-            }
-
-            // Auto-dismiss profile switch overlay
-            if (profileSwitchLoading) {
-                LaunchedEffect(Unit) {
-                    // Brief loading screen while home refreshes for the new profile
-                    kotlinx.coroutines.delay(1200)
-                    profileSwitchLoading = false
-                }
             }
 
             NuvioFloatingPrompt(
