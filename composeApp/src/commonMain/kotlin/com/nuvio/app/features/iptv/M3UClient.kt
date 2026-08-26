@@ -120,6 +120,15 @@ object M3UClient : IptvClient {
         private val pendingCats = ArrayList<Triple<String, String, String>>()
         private val seenCats = HashSet<String>()
         private val seenSeries = HashSet<Int>()
+
+        // FNV-31 ids collide (~2 expected at 100k rows, ~100 at the documented 685k ceiling);
+        // every id here is a PRIMARY KEY written with INSERT OR REPLACE, so a collision used to
+        // silently delete another row. Probe with salts until unused: non-colliding urls keep
+        // their exact historical FNV value, only true collisions get a derived id.
+        private val usedM3UIds = HashSet<Int>()
+        private val usedEpisodeIds = HashSet<String>()
+        private val m3uIdByKey = HashMap<String, Int>()
+        private val episodeIdByUrl = HashMap<String, String>()
         var liveCount = 0; private set
         var vodCount = 0; private set
         var episodeCount = 0; private set
@@ -130,25 +139,25 @@ object M3UClient : IptvClient {
             when (entry.kind) {
                 M3UKind.LIVE -> {
                     rememberCategory(IptvContentKind.LIVE.slug, catId, entry.group)
-                    channels.add(IptvStreamRow(sidOf(entry.url), entry.name, entry.logo, entry.tvgId, catId, entry.url, entry.ext))
+                    channels.add(IptvStreamRow(uniqueSid(entry.url), entry.name, entry.logo, entry.tvgId, catId, entry.url, entry.ext))
                     liveCount++
                 }
                 M3UKind.MOVIE -> {
                     rememberCategory(IptvContentKind.VOD.slug, catId, entry.group)
-                    vod.add(IptvStreamRow(sidOf(entry.url), entry.name, entry.logo, null, catId, entry.url, entry.ext))
+                    vod.add(IptvStreamRow(uniqueSid(entry.url), entry.name, entry.logo, null, catId, entry.url, entry.ext))
                     vodCount++
                 }
                 M3UKind.SERIES -> {
                     rememberCategory(IptvContentKind.SERIES.slug, catId, entry.group)
                     val key = entry.seriesKey ?: entry.name
-                    val seriesSid = sidOf("series:$key")
+                    val seriesSid = uniqueSid("series:$key")
                     if (seenSeries.add(seriesSid)) {
                         series.add(IptvSeriesRow(seriesSid, seriesTitle(key), entry.logo, catId))
                     }
                     episodes.add(
                         IptvEpisodeRow(
                             seriesSid = seriesSid,
-                            episodeId = episodeIdOf(entry.url),
+                            episodeId = uniqueEpisodeId(entry.url),
                             name = entry.name,
                             season = entry.season ?: 1,
                             episode = entry.episode ?: (episodeCount % 10_000),
@@ -168,6 +177,48 @@ object M3UClient : IptvClient {
         }
 
         fun finish() = flush()
+
+        /** FNV ids collide at playlist scale and every id here is a PRIMARY KEY written with
+         *  INSERT OR REPLACE — a collision used to silently delete another row. Probe salts until
+         *  unused: non-colliding urls keep their exact historical FNV value, only true collisions
+         *  get a derived id. */
+        private fun uniqueSid(key: String): Int {
+            m3uIdByKey[key]?.let { return it }
+            val first = sidOf(key)
+            if (usedM3UIds.add(first)) {
+                m3uIdByKey[key] = first
+                return first
+            }
+            var salt = 1
+            while (true) {
+                val candidate = sidOf("$key alt$salt")
+                if (usedM3UIds.add(candidate)) {
+                    m3uIdByKey[key] = candidate
+                    return candidate
+                }
+                salt++
+            }
+        }
+
+        /** The episodes table is keyed (playlist_id, episode_id), so episode-id collisions span all
+         *  series in the playlist — salted the same way as stream ids. */
+        private fun uniqueEpisodeId(url: String): String {
+            episodeIdByUrl[url]?.let { return it }
+            val first = episodeIdOf(url)
+            if (usedEpisodeIds.add(first)) {
+                episodeIdByUrl[url] = first
+                return first
+            }
+            var salt = 1
+            while (true) {
+                val candidate = episodeIdOf("$url alt$salt")
+                if (usedEpisodeIds.add(candidate)) {
+                    episodeIdByUrl[url] = candidate
+                    return candidate
+                }
+                salt++
+            }
+        }
 
         private fun flush() {
             if (channels.isEmpty() && vod.isEmpty() && series.isEmpty() && episodes.isEmpty() && pendingCats.isEmpty()) return
@@ -333,7 +384,9 @@ object M3UClient : IptvClient {
         year = null,
     )
 
-    /** A stable non-negative Int id from an arbitrary string (URL / series key). FNV-1a, masked. */
+    /** A stable non-negative Int id from an arbitrary string (URL / series key). FNV-1a, masked.
+     *  NOT unique by itself at playlist scale — [IngestCollector] probes salts via
+     *  [uniqueSid]/[uniqueEpisodeId] before persisting. */
     internal fun sidOf(s: String): Int {
         var hash = -0x7ee3623b // FNV offset basis (0x811C9DC5) as a signed Int
         for (c in s) {

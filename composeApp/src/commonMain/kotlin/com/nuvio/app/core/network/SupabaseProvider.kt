@@ -15,8 +15,13 @@ import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.HttpHeaders
 import io.ktor.http.takeFrom
+import co.touchlab.kermit.Logger
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 object SupabaseProvider {
     private data class ClientHolder(
@@ -24,8 +29,13 @@ object SupabaseProvider {
         val client: SupabaseClient,
     )
 
+    private val log = Logger.withTag("SupabaseProvider")
     private val clientLock = SynchronizedObject()
     private var holder: ClientHolder? = null
+
+    // Fire-and-forget teardown for discarded clients. close() is suspend (it shuts down the ktor
+    // client and every plugin scope, including the Auth auto-refresher and the Realtime socket).
+    private val teardownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val selectedBackend: SyncBackendConfig
         get() = SyncBackendRepository.selectedBackend
@@ -35,7 +45,19 @@ object SupabaseProvider {
         get() = clientFor(selectedBackend)
 
     fun rebuildClient() {
-        synchronized(clientLock) { holder = null }
+        synchronized(clientLock) {
+            val stale = holder
+            holder = null
+            closeDiscarded(stale)
+        }
+    }
+
+    private fun closeDiscarded(stale: ClientHolder?) {
+        if (stale == null) return
+        teardownScope.launch {
+            runCatching { stale.client.close() }
+                .onFailure { error -> log.w(error) { "Failed to close replaced Supabase client" } }
+        }
     }
 
     // Client construction is single-flight: two coroutines racing this getter at cold start must
@@ -44,9 +66,9 @@ object SupabaseProvider {
     // refresh-token reuse window, which revokes the session and signs the user out.
     @OptIn(SupabaseInternal::class)
     private fun clientFor(config: SyncBackendConfig): SupabaseClient = synchronized(clientLock) {
-        holder
-            ?.takeIf { it.backend.hasSameConnectionIdentity(config) }
-            ?.let { return it.client }
+        val current = holder
+        if (current != null && current.backend.hasSameConnectionIdentity(config)) return current.client
+        val previous = holder
 
         val userAgent = "Tuvora/${AppVersionConfig.VERSION_NAME.ifBlank { "dev" }}"
         val nextClient = createSupabaseClient(
@@ -120,6 +142,10 @@ object SupabaseProvider {
             }
         }
         holder = ClientHolder(backend = config, client = nextClient)
+        // The replaced backend's client must not outlive the swap: a leaked Auth auto-refresher
+        // racing the new client's refresher against the SAME persisted session is exactly the
+        // two-refresher desync (GoTrue reuse window -> revoked family) this file documents.
+        closeDiscarded(previous)
         nextClient
     }
 }

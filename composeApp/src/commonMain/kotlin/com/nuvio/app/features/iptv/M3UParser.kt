@@ -102,7 +102,10 @@ object M3UParser {
         val cleanUrl = url.trim()
         if (cleanUrl.isBlank() || cleanUrl.startsWith("#")) return null
         val attrs = parseAttributes(extInf)
-        val displayName = extInf.substringAfter(',', "").trim()
+        // The display name starts after the first TOP-LEVEL comma — one outside quotes.
+        // Splitting at the raw first comma mangled `group-title="Kids, Cartoons",Name`.
+        val nameSeparator = topLevelCommaIndex(extInf)
+        val displayName = (if (nameSeparator >= 0) extInf.substring(nameSeparator + 1) else "").trim()
             .ifBlank { attrs["tvg-name"] ?: cleanUrl.substringAfterLast('/') }
         val group = attrs["group-title"]?.ifBlank { null }
         val ext = extensionOf(cleanUrl)
@@ -153,9 +156,27 @@ object M3UParser {
         }
     }
 
+    /**
+     * Index of the first ',' outside double-quoted attribute values, or -1. This is the
+     * `#EXTINF` name separator: `group-title="Kids, Cartoons",Real Name` must split at the
+     * comma AFTER the closing quote, not inside the value.
+     */
+    private fun topLevelCommaIndex(line: String): Int {
+        var inQuotes = false
+        for (i in line.indices) {
+            val c = line[i]
+            if (c == '"') inQuotes = !inQuotes
+            else if (c == ',' && !inQuotes) return i
+        }
+        return -1
+    }
+
     /** Extracts the `key="value"` attributes from an #EXTINF line (before the trailing `,name`). */
     fun parseAttributes(extInf: String): Map<String, String> {
-        val head = extInf.substringBefore(',')
+        // Attribute scanning must stop at the top-level comma, not the first comma — quoted
+        // values may contain commas ("Kids, Cartoons").
+        val nameSeparator = topLevelCommaIndex(extInf)
+        val head = if (nameSeparator < 0) extInf else extInf.substring(0, nameSeparator)
         val out = LinkedHashMap<String, String>()
         var i = 0
         while (i < head.length) {

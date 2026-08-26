@@ -1,6 +1,7 @@
 package com.nuvio.app.features.downloads
 
 import com.nuvio.app.features.streams.StreamItem
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,12 +15,15 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
 object DownloadsRepository {
+    private const val PROGRESS_PERSIST_INTERVAL_MS = 2_000L
+
     private val _uiState = MutableStateFlow(DownloadsUiState())
     val uiState: StateFlow<DownloadsUiState> = _uiState.asStateFlow()
 
     private val activeHandles = mutableMapOf<String, DownloadsTaskHandle>()
     private var hasLoaded = false
     private var nextDownloadOrdinal = 0L
+    @Volatile private var lastProgressPersistAtMs = 0L
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -350,19 +354,49 @@ object DownloadsRepository {
 
     private fun mutateItem(downloadId: String, transform: (DownloadItem) -> DownloadItem) {
         var changed = false
-        val updated = _uiState.value.items.map { item ->
-            if (item.id == downloadId) {
+        var needsPersist = false
+        // Atomic compare-and-set instead of read-map-write over _uiState.value: progress
+        // callbacks run on download IO threads while pause/cancel/enqueue run elsewhere — the
+        // old non-atomic sequence could drop a status transition written in between.
+        _uiState.update { state ->
+            var mutated = false
+            var structural = false
+            val updated = state.items.map { item ->
+                if (item.id == downloadId) {
+                    val next = transform(item)
+                    if (next != item) {
+                        mutated = true
+                        structural = next.status != item.status ||
+                            next.localFileUri != item.localFileUri ||
+                            next.errorMessage != item.errorMessage
+                    }
+                    next
+                } else {
+                    item
+                }
+            }
+            if (mutated) {
                 changed = true
-                transform(item)
+                needsPersist = structural || progressPersistDue()
+                DownloadsUiState(items = updated)
             } else {
-                item
+                state
             }
         }
 
-        if (changed) {
-            publish(updated)
-            persist()
-        }
+        if (!changed) return
+        notifyLiveStatusPlatform()
+        if (needsPersist) persist()
+    }
+
+    /** Byte-counter ticks don't need a disk write each (resume reads the .part file, not this
+     *  state); persist them at most every [PROGRESS_PERSIST_INTERVAL_MS]. Structural changes
+     *  always persist immediately. */
+    private fun progressPersistDue(): Boolean {
+        val now = DownloadsClock.nowEpochMs()
+        if (now - lastProgressPersistAtMs < PROGRESS_PERSIST_INTERVAL_MS) return false
+        lastProgressPersistAtMs = now
+        return true
     }
 
     private fun replaceItem(item: DownloadItem) {

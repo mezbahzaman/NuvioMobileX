@@ -5,6 +5,8 @@ import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpPostJsonWithHeaders
 import com.nuvio.app.features.addons.httpRequestRaw
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.simkl.SimklPkceCrypto
+import com.nuvio.app.features.simkl.base64UrlWithoutPadding
 import com.nuvio.app.features.tracking.TrackingAuthProvider
 import com.nuvio.app.features.tracking.TrackingCapability
 import com.nuvio.app.features.tracking.TrackingProviderDescriptor
@@ -27,7 +29,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlin.random.Random
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.StringResource
@@ -37,6 +38,7 @@ object TraktAuthRepository : TrackingAuthProvider {
     private const val BASE_URL = "https://api.trakt.tv"
     private const val AUTHORIZE_URL = "https://trakt.tv/oauth/authorize"
     private const val API_VERSION = "2"
+    private const val PENDING_AUTHORIZATION_TTL_MS = 5L * 60L * 1_000L
 
     private val log = Logger.withTag("TraktAuth")
     private val json = Json {
@@ -140,6 +142,12 @@ object TraktAuthRepository : TrackingAuthProvider {
     fun pendingAuthorizationUrl(profileId: Int = ProfileRepository.activeProfileId): String? {
         ensureLoaded(profileId)
         val oauthState = authState.pendingAuthorizationState ?: return null
+        if (isPendingAuthorizationExpired()) {
+            clearPendingAuthorization()
+            persist(profileId)
+            publish()
+            return null
+        }
         return buildAuthorizationUrl(oauthState)
     }
 
@@ -275,8 +283,19 @@ object TraktAuthRepository : TrackingAuthProvider {
         }
 
         val expectedState = authState.pendingAuthorizationState
+        // A callback without a pending flow (or with a stale one) must never be
+        // exchanged — that was a state-validation bypass.
+        if (expectedState.isNullOrBlank() || isPendingAuthorizationExpired()) {
+            clearPendingAuthorization()
+            persist(profileId)
+            publish(
+                isLoading = false,
+                errorMessage = localizedString(Res.string.trakt_invalid_callback),
+            )
+            return
+        }
         val callbackState = parsedUrl.parameters["state"].orEmpty().trim()
-        if (!expectedState.isNullOrBlank() && callbackState != expectedState) {
+        if (callbackState != expectedState) {
             clearPendingAuthorization()
             persist(profileId)
             publish(
@@ -300,10 +319,14 @@ object TraktAuthRepository : TrackingAuthProvider {
         )
 
         val response = runCatching {
-            httpPostJsonWithHeaders(
+            httpRequestRaw(
+                method = "POST",
                 url = "$BASE_URL/oauth/token",
                 body = body,
-                headers = emptyMap(),
+                headers = mapOf(
+                    "Accept" to "application/json",
+                    "Content-Type" to "application/json",
+                ),
             )
         }.onFailure { error ->
             if (error is CancellationException) throw error
@@ -317,8 +340,24 @@ object TraktAuthRepository : TrackingAuthProvider {
             return
         }
 
+        if (response.status !in 200..299) {
+            val oauthError = runCatching {
+                json.decodeFromString<TraktOauthErrorResponse>(response.body)
+            }.getOrNull()?.error
+            val message = when (oauthError) {
+                "invalid_client" -> Res.string.trakt_invalid_app_credentials
+                "invalid_grant" -> Res.string.trakt_invalid_or_expired_auth_code
+                else -> Res.string.trakt_sign_in_complete_failed
+            }
+            log.w { "Trakt authorization-code exchange rejected: status=${response.status} error=${oauthError ?: "unknown"}" }
+            clearPendingAuthorization()
+            persist(profileId)
+            publish(isLoading = false, errorMessage = localizedString(message))
+            return
+        }
+
         val parsed = runCatching {
-            json.decodeFromString<TraktTokenResponse>(response)
+            json.decodeFromString<TraktTokenResponse>(response.body)
         }.getOrNull()
 
         if (parsed == null) {
@@ -524,10 +563,13 @@ object TraktAuthRepository : TrackingAuthProvider {
         return "$AUTHORIZE_URL?response_type=$responseType&client_id=$encodedClientId&redirect_uri=$encodedRedirectUri&state=$encodedState"
     }
 
-    private fun generateOauthState(): String {
-        val nowPart = TraktPlatformClock.nowEpochMs().toString(16)
-        val randomPart = Random.nextLong().toULong().toString(16)
-        return "$nowPart$randomPart"
+    private fun generateOauthState(): String =
+        SimklPkceCrypto.secureRandomBytes(32).base64UrlWithoutPadding()
+
+    // Mirrors the Simkl flow: a pending authorization is only valid for 5 minutes.
+    private fun isPendingAuthorizationExpired(): Boolean {
+        val startedAt = authState.pendingAuthorizationStartedAtMillis ?: return true
+        return TraktPlatformClock.nowEpochMs() - startedAt > PENDING_AUTHORIZATION_TTL_MS
     }
 
     private fun isTokenExpiredOrExpiring(state: TraktAuthState): Boolean {
@@ -585,6 +627,12 @@ private data class TraktTokenResponse(
     @SerialName("token_type") val tokenType: String,
     @SerialName("expires_in") val expiresIn: Int,
     @SerialName("created_at") val createdAt: Long,
+)
+
+@Serializable
+private data class TraktOauthErrorResponse(
+    val error: String? = null,
+    @SerialName("error_description") val errorDescription: String? = null,
 )
 
 @Serializable

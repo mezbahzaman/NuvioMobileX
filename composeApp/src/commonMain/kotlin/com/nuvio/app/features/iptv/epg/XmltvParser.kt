@@ -27,6 +27,9 @@ class XmltvStreamingParser(
     // '<' can't grow unbounded (a real guide breaks into tags constantly, so this never trips).
     private val buf = StringBuilder()
     private var inTag = false
+    // Inside <![CDATA[ … ]]>: every character (including '<' and '>') is literal text until "]]>".
+    private var inCdata = false
+    private var cdataClosingBrackets = 0
 
     // Current-element state. Only ONE programme/channel is ever "open" at a time (XMLTV is flat).
     private var curChannelId: String? = null            // set inside <channel>
@@ -47,14 +50,39 @@ class XmltvStreamingParser(
         val n = chunk.length
         while (i < n) {
             val c = chunk[i]
-            if (inTag) {
+            if (inCdata) {
+                when {
+                    c == ']' -> cdataClosingBrackets += 1
+                    c == '>' && cdataClosingBrackets >= 2 -> {
+                        repeat(cdataClosingBrackets - 2) { appendText(']') }
+                        cdataClosingBrackets = 0
+                        // Everything between the open marker and the trailing "]]>" is literal text.
+                        val payload = buf.toString()
+                        buf.setLength(0)
+                        inCdata = false
+                        if (payload.isNotEmpty()) emitText(payload)
+                    }
+                    else -> {
+                        repeat(cdataClosingBrackets) { appendText(']') }
+                        cdataClosingBrackets = 0
+                        appendText(c)
+                    }
+                }
+            } else if (inTag) {
                 if (c == '>') {
                     handleTag(buf.toString())
                     buf.setLength(0)
                     inTag = false
                 } else {
                     buf.append(c)
-                    if (buf.length > MAX_TOKEN) buf.setLength(0) // runaway guard (never hit in practice)
+                    if (buf.toString().equals(CDATA_OPEN, ignoreCase = true)) {
+                        buf.setLength(0)
+                        inTag = false
+                        inCdata = true
+                        cdataClosingBrackets = 0
+                    } else if (buf.length > MAX_TOKEN) {
+                        buf.setLength(0) // runaway guard (never hit in practice)
+                    }
                 }
             } else {
                 if (c == '<') {
@@ -79,6 +107,12 @@ class XmltvStreamingParser(
     fun finish() {
         buf.setLength(0)
         inTag = false
+        inCdata = false
+        cdataClosingBrackets = 0
+    }
+
+    private fun appendText(c: Char) {
+        if (buf.length < MAX_TEXT) buf.append(c)
     }
 
     private fun emitText(raw: String) {
@@ -165,6 +199,7 @@ class XmltvStreamingParser(
         const val MAX_TOKEN = 64 * 1024      // a tag longer than this isn't a real XMLTV tag
         const val MAX_TEXT = 8 * 1024        // clamp a single title/desc's characters
         const val DEFAULT_PROGRAMME_MS = 60L * 60 * 1000  // 1h fallback when stop is missing
+        const val CDATA_OPEN = "![CDATA["    // the tag body after '<' that opens a CDATA section
     }
 }
 

@@ -53,9 +53,19 @@ internal actual object DownloadsPlatformDownloader {
                 return@launch
             }
 
+            // The file name is derived from remote titles — reject anything that could escape
+            // the downloads directory instead of trusting it.
+            val fileName = request.destinationFileName.trim()
+            if (fileName.isEmpty() || fileName == "." || fileName == ".." ||
+                fileName.contains('/') || fileName.contains('\\')
+            ) {
+                onFailure(runBlocking { getString(Res.string.download_failed) })
+                return@launch
+            }
+
             val downloadsDir = File(context.filesDir, "downloads").apply { mkdirs() }
-            val destination = File(downloadsDir, request.destinationFileName)
-            val tempFile = File(downloadsDir, "${request.destinationFileName}.part")
+            val destination = File(downloadsDir, fileName)
+            val tempFile = File(downloadsDir, "$fileName.part")
 
             try {
                 var resumeFromBytes = tempFile.takeIf { it.exists() }?.length()?.coerceAtLeast(0L) ?: 0L
@@ -121,18 +131,27 @@ internal actual object DownloadsPlatformDownloader {
 
                     body.byteStream().use { input ->
                         FileOutputStream(tempFile, appendToTemp).use { output ->
-                            val buffer = ByteArray(16 * 1024)
+                            val buffer = ByteArray(64 * 1024)
+                            // Reporting every chunk made the repository re-serialize its entire
+                            // item list per 16 KB (~260k times for a 4 GB file). Throttle to
+                            // ~5 updates/s; a final exact report always follows the loop.
+                            var lastReportAtMs = 0L
                             while (true) {
                                 ensureActive()
                                 val read = input.read(buffer)
                                 if (read <= 0) break
                                 output.write(buffer, 0, read)
                                 downloadedBytes += read.toLong()
-                                onProgress(downloadedBytes, totalBytes)
+                                val now = System.currentTimeMillis()
+                                if (now - lastReportAtMs >= 200) {
+                                    lastReportAtMs = now
+                                    onProgress(downloadedBytes, totalBytes)
+                                }
                             }
                             output.flush()
                         }
                     }
+                    onProgress(downloadedBytes, totalBytes)
 
                     if (destination.exists()) {
                         destination.delete()
@@ -165,8 +184,14 @@ internal actual object DownloadsPlatformDownloader {
 
     actual fun removePartialFile(destinationFileName: String): Boolean {
         val context = appContext ?: return false
+        val name = destinationFileName.trim()
+        if (name.isEmpty() || name.contains('/') || name.contains('\\') ||
+            name == "." || name == ".."
+        ) {
+            return false
+        }
         val downloadsDir = File(context.filesDir, "downloads")
-        val tempFile = File(downloadsDir, "$destinationFileName.part")
+        val tempFile = File(downloadsDir, "$name.part")
         if (!tempFile.exists()) return true
         return runCatching { tempFile.delete() }.getOrDefault(false)
     }

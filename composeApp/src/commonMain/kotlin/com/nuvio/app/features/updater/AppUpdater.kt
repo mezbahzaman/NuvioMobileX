@@ -23,8 +23,8 @@ import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
-private const val gitHubOwner = "paradox-kush"
-private const val gitHubRepo = "NuvioMobile"
+private const val gitHubOwner = "mezbahzaman"
+private const val gitHubRepo = "TuvoraMobileX"
 private const val gitHubApiBase = "https://api.github.com"
 
 data class AppUpdate(
@@ -100,11 +100,10 @@ private object VersionUtils {
         val remoteParts = parseVersionParts(remote)
         val localParts = parseVersionParts(local)
 
-        if (remoteParts == null || localParts == null) {
-            val remoteValue = normalize(remote)
-            val localValue = normalize(local)
-            return remoteValue.isNotBlank() && localValue.isNotBlank() && remoteValue != localValue
-        }
+        // If either tag is not a parseable numeric version, we cannot order the
+        // releases — treating "different string" as "newer" made any non-version
+        // tag (nightly, latest, …) permanently nag as an update.
+        if (remoteParts == null || localParts == null) return false
 
         val maxSize = maxOf(remoteParts.size, localParts.size)
         for (index in 0 until maxSize) {

@@ -12,6 +12,7 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.concurrent.ConflatedTaskDispatcher
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 internal const val NOW_PLAYING_TAG = "NuvioNowPlaying"
 internal const val NOW_PLAYING_CHANNEL_ID = "nuvio_playback"
@@ -40,6 +41,7 @@ class PlayerNowPlayingService : Service() {
             Log.w(NOW_PLAYING_TAG, "Unable to promote playback service", error)
         }.isSuccess
         if (!started) {
+            PlayerNowPlayingServiceController.noteForegroundPromotionFailed()
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -88,14 +90,27 @@ private sealed interface PlayerNowPlayingServiceCommand {
 }
 
 private object PlayerNowPlayingServiceController {
+    private const val START_RETRY_COOLDOWN_MS = 30_000L
+
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "NuvioNowPlayingService").apply { isDaemon = true }
     }
     private val startRequested = AtomicBoolean(false)
+    // When promoting to foreground fails (Android 12+ background-FGS-start restrictions are the
+    // usual cause), back off: onDestroy -> republish -> start -> fail -> destroy used to spin
+    // for as long as playback kept ticking.
+    private val lastFailedStartAtMs = AtomicLong(0L)
     private val commands = ConflatedTaskDispatcher<PlayerNowPlayingServiceCommand>(
         schedule = { task -> executor.execute(task) },
         consume = ::execute,
     )
+
+    fun noteForegroundPromotionFailed() {
+        lastFailedStartAtMs.set(android.os.SystemClock.elapsedRealtime())
+    }
+
+    private fun startFailureCoolingDown(): Boolean =
+        android.os.SystemClock.elapsedRealtime() - lastFailedStartAtMs.get() < START_RETRY_COOLDOWN_MS
 
     fun publish(context: Context, notification: Notification) {
         PlayerNowPlayingServiceState.notification = notification
@@ -109,6 +124,7 @@ private object PlayerNowPlayingServiceController {
 
     fun onServiceDestroyed(context: Context) {
         startRequested.set(false)
+        if (startFailureCoolingDown()) return
         val notification = PlayerNowPlayingServiceState.notification ?: return
         commands.dispatch(PlayerNowPlayingServiceCommand.Publish(context, notification))
     }
@@ -138,6 +154,7 @@ private object PlayerNowPlayingServiceController {
             if (!started) {
                 PlayerNowPlayingServiceState.clearPendingStartNotification(command.notification)
                 startRequested.set(false)
+                noteForegroundPromotionFailed()
                 return
             }
         }

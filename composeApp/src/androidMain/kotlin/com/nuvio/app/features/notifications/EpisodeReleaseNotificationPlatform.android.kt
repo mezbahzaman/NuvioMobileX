@@ -122,12 +122,21 @@ internal actual object EpisodeReleaseNotificationPlatform {
 
         val activity = currentActivity ?: return false
         return suspendCancellableCoroutine { continuation ->
+            // A concurrent second request used to overwrite this slot, leaving the first caller
+            // suspended forever (settings toggle stuck on isLoading). Resume the stale waiter
+            // as denied before taking over.
+            pendingPermissionContinuation?.resume(false)
             pendingPermissionContinuation = continuation
             ActivityCompat.requestPermissions(
                 activity,
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                 permissionRequestCode,
             )
+            continuation.invokeOnCancellation {
+                if (pendingPermissionContinuation === continuation) {
+                    pendingPermissionContinuation = null
+                }
+            }
         }
     }
 

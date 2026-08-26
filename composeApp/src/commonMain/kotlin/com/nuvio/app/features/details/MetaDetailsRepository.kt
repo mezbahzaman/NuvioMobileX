@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -42,12 +44,20 @@ object MetaDetailsRepository {
         val metaScreenSettingsFingerprint: String? = null,
     )
 
+    private const val MAX_CACHED_META_ENTRIES = 48
+
     private val log = Logger.withTag("MetaDetailsRepo")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _uiState = MutableStateFlow(MetaDetailsUiState())
     val uiState: StateFlow<MetaDetailsUiState> = _uiState.asStateFlow()
     private var activeRequestKey: String? = null
+
+    // Access-ordered + size-bounded: this used to grow for every title visited for the whole
+    // session (full MetaDetails graphs are heavy). Touched from multiple threads — always read
+    // or mutate it inside [cacheLock], never across suspension points.
+    private val cacheLock = SynchronizedObject()
     private val cachedMetaByRequestKey = mutableMapOf<String, CachedMetaEntry>()
+    private val cachedMetaLruKeys = mutableListOf<String>()
 
     fun load(type: String, id: String) {
         log.d { "load() called — type=$type id=$id" }
@@ -56,7 +66,8 @@ object MetaDetailsRepository {
         val mdbListSettings = MdbListSettingsRepository.snapshot()
         val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(mdbListSettings)
 
-        cachedMetaByRequestKey[requestKey]?.let { cachedEntry ->
+        val cachedEntry = cacheGet(requestKey)
+        cachedEntry?.let { cachedEntry ->
             cachedEntry.metaScreenMeta
                 ?.takeIf { cachedEntry.metaScreenSettingsFingerprint == metaScreenSettingsFingerprint }
                 ?.let { cachedMeta ->
@@ -94,6 +105,8 @@ object MetaDetailsRepository {
                         settingsFingerprint = metaScreenSettingsFingerprint,
                     )
                 }
+                // A newer navigation must never be overwritten by this request's result.
+                if (activeRequestKey != requestKey) return@launch
                 _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
                 activeRequestKey = requestKey
             }
@@ -137,6 +150,7 @@ object MetaDetailsRepository {
                 }
 
                 log.w { "No addon provides meta for type=$type id=$id" }
+                if (activeRequestKey != requestKey) return@launch
                 _uiState.value = MetaDetailsUiState(
                     errorMessage = getString(Res.string.details_no_addon_meta),
                 )
@@ -174,6 +188,7 @@ object MetaDetailsRepository {
                 return@launch
             }
 
+            if (activeRequestKey != requestKey) return@launch
             _uiState.value = MetaDetailsUiState(
                 errorMessage = getString(Res.string.details_load_failed_all_addons),
             )
@@ -187,7 +202,7 @@ object MetaDetailsRepository {
         if (currentMeta != null) return currentMeta
 
         val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(MdbListSettingsRepository.snapshot())
-        val cachedEntry = cachedMetaByRequestKey[requestKey] ?: return null
+        val cachedEntry = cacheGet(requestKey) ?: return null
         return cachedEntry.metaScreenMeta
             ?.takeIf { cachedEntry.metaScreenSettingsFingerprint == metaScreenSettingsFingerprint }
             ?: cachedEntry.baseMeta
@@ -195,13 +210,13 @@ object MetaDetailsRepository {
 
     fun clear() {
         activeRequestKey = null
-        cachedMetaByRequestKey.clear()
+        cacheClear()
         _uiState.value = MetaDetailsUiState()
     }
 
     suspend fun fetch(type: String, id: String, cacheResult: Boolean = true): MetaDetails? {
         val requestKey = "$type:$id"
-        cachedMetaByRequestKey[requestKey]?.let { return it.baseMeta }
+        cacheGet(requestKey)?.let { return it.baseMeta }
 
         val metaLookupId = resolveMetaLookupId(itemId = id, itemType = type)
         val manifests = findReadyMetaManifests(type = type, id = metaLookupId)
@@ -212,7 +227,7 @@ object MetaDetailsRepository {
             }
             if (result != null) {
                 if (cacheResult) {
-                    cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+                    cachePut(requestKey, CachedMetaEntry(baseMeta = result))
                 }
                 return result
             }
@@ -220,7 +235,7 @@ object MetaDetailsRepository {
 
         return tryFetchTmdbFallbackMeta(type = type, id = id)?.also { result ->
             if (cacheResult) {
-                cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+                cachePut(requestKey, CachedMetaEntry(baseMeta = result))
             }
         }
     }
@@ -229,6 +244,41 @@ object MetaDetailsRepository {
     private const val METADATA_PROVIDER_READY_TIMEOUT_MS = 10_000L
     private const val TMDB_ENRICH_TIMEOUT_MS = 5_000L
     private const val MDBLIST_ENRICH_TIMEOUT_MS = 5_000L
+
+    private fun cacheGet(key: String): CachedMetaEntry? = synchronized(cacheLock) {
+        val entry = cachedMetaByRequestKey[key] ?: return@synchronized null
+        cachedMetaLruKeys.remove(key)
+        cachedMetaLruKeys.add(key)
+        entry
+    }
+
+    private fun cachePut(key: String, entry: CachedMetaEntry) = synchronized(cacheLock) {
+        cachedMetaByRequestKey[key] = entry
+        cachedMetaLruKeys.remove(key)
+        cachedMetaLruKeys.add(key)
+        trimCacheLocked()
+    }
+
+    private fun cacheUpdate(
+        key: String,
+        transform: (CachedMetaEntry?) -> CachedMetaEntry,
+    ) = synchronized(cacheLock) {
+        cachedMetaByRequestKey[key] = transform(cachedMetaByRequestKey[key])
+        cachedMetaLruKeys.remove(key)
+        cachedMetaLruKeys.add(key)
+        trimCacheLocked()
+    }
+
+    private fun cacheClear() = synchronized(cacheLock) {
+        cachedMetaByRequestKey.clear()
+        cachedMetaLruKeys.clear()
+    }
+
+    private fun trimCacheLocked() {
+        while (cachedMetaLruKeys.size > MAX_CACHED_META_ENTRIES) {
+            cachedMetaByRequestKey.remove(cachedMetaLruKeys.removeAt(0))
+        }
+    }
 
     private suspend fun tryFetchMeta(
         manifest: AddonManifest,
@@ -348,7 +398,11 @@ object MetaDetailsRepository {
         metaScreenSettingsFingerprint: String,
     ) {
         val cachedEntry = CachedMetaEntry(baseMeta = meta)
-        cachedMetaByRequestKey[requestKey] = cachedEntry
+        cachePut(requestKey, cachedEntry)
+
+        // The user may have navigated elsewhere while this request was in flight — never
+        // publish a stale result over a newer screen.
+        if (activeRequestKey != requestKey) return
 
         if (!shouldEnrichForMetaScreen(meta, fallbackItemId, mdbListSettings)) {
             _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())
@@ -370,10 +424,14 @@ object MetaDetailsRepository {
                 settingsFingerprint = metaScreenSettingsFingerprint,
             )
         }
-        cachedMetaByRequestKey[requestKey] = cachedEntry.copy(
-            metaScreenMeta = enrichedMeta,
-            metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+        cachePut(
+            requestKey,
+            cachedEntry.copy(
+                metaScreenMeta = enrichedMeta,
+                metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+            ),
         )
+        if (activeRequestKey != requestKey) return
         _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
         activeRequestKey = requestKey
     }
@@ -399,16 +457,18 @@ object MetaDetailsRepository {
             fallbackItemType = fallbackItemType,
         )
 
-        cachedMetaByRequestKey[requestKey] = cachedMetaByRequestKey[requestKey]
-            ?.copy(
-                metaScreenMeta = enrichedMeta,
-                metaScreenSettingsFingerprint = settingsFingerprint,
-            )
-            ?: CachedMetaEntry(
-                baseMeta = meta,
-                metaScreenMeta = enrichedMeta,
-                metaScreenSettingsFingerprint = settingsFingerprint,
-            )
+        cacheUpdate(requestKey) { current ->
+            current
+                ?.copy(
+                    metaScreenMeta = enrichedMeta,
+                    metaScreenSettingsFingerprint = settingsFingerprint,
+                )
+                ?: CachedMetaEntry(
+                    baseMeta = meta,
+                    metaScreenMeta = enrichedMeta,
+                    metaScreenSettingsFingerprint = settingsFingerprint,
+                )
+        }
 
         return enrichedMeta
     }
@@ -565,17 +625,22 @@ object MetaDetailsRepository {
     private suspend fun loadXtreamMeta(requestKey: String, id: String) {
         val meta = withContext(Dispatchers.Default) { MetaSourceAccess.current().buildNativeMeta(id) }
         if (meta == null) {
+            if (activeRequestKey != requestKey) return
             _uiState.value = MetaDetailsUiState(errorMessage = getString(Res.string.details_no_addon_meta))
             activeRequestKey = null
             return
         }
 
         val fingerprint = buildMetaScreenSettingsFingerprint(MdbListSettingsRepository.snapshot())
-        cachedMetaByRequestKey[requestKey] = CachedMetaEntry(
-            baseMeta = meta,
-            metaScreenMeta = meta,
-            metaScreenSettingsFingerprint = fingerprint,
+        cachePut(
+            requestKey,
+            CachedMetaEntry(
+                baseMeta = meta,
+                metaScreenMeta = meta,
+                metaScreenSettingsFingerprint = fingerprint,
+            ),
         )
+        if (activeRequestKey != requestKey) return
         _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())
         activeRequestKey = requestKey
     }

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.atomicfu.atomic
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -52,8 +53,11 @@ object RealtimeSyncInvalidationService {
      * channel that has (re)joined refuses `postgresChangeFlow`. Restarting the subscription used to
      * reset the attempt counter, so a restart could collide with a channel the client was still
      * holding — and the throw crashed the app.
+     *
+     * Atomic because start()/stop() run on caller threads while `++` happens inside the
+     * subscription coroutine on Dispatchers.Default.
      */
-    private var channelSequence = 0L
+    private val channelSequence = atomic(0L)
 
     private var subscriptionJob: Job? = null
     private var drainJob: Job? = null
@@ -76,7 +80,7 @@ object RealtimeSyncInvalidationService {
         subscriptionJob = scope.launch {
             var attempt = 1
             while (isActive) {
-                val channelName = "sync-invalidations:$userId:$profileId:${++channelSequence}"
+                val channelName = "sync-invalidations:$userId:$profileId:${channelSequence.incrementAndGet()}"
                 var channel: RealtimeChannel? = null
                 var changesJob: Job? = null
                 var realtimeStatusJob: Job? = null

@@ -1215,7 +1215,7 @@
     <string name="settings_trakt_features">FEATURES</string>
     <string name="settings_trakt_finish_sign_in">Finish connection approval</string>
     <string name="settings_trakt_intro_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
-    <string name="settings_trakt_missing_credentials">Missing TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET in local.properties.</string>
+    <string name="settings_trakt_missing_credentials">This build was created without Trakt OAuth credentials.</string>
     <string name="settings_trakt_open_login">Open Trakt Login</string>
     <string name="settings_trakt_save_actions_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
     <string name="settings_trakt_sign_in_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
@@ -1658,6 +1658,8 @@
     <string name="trakt_disconnected">Disconnected from Trakt</string>
     <string name="trakt_invalid_callback">Invalid Trakt callback</string>
     <string name="trakt_invalid_callback_state">Invalid Trakt callback state</string>
+    <string name="trakt_invalid_app_credentials">This build's Trakt client ID or secret is invalid. Update the release credentials.</string>
+    <string name="trakt_invalid_or_expired_auth_code">The Trakt authorization code is invalid, expired, or already used. Start sign in again.</string>
     <string name="trakt_invalid_token_response">Invalid Trakt token response</string>
     <string name="trakt_library_load_failed">Failed to load Trakt library</string>
     <string name="trakt_list_fallback_title">List %1$d</string>

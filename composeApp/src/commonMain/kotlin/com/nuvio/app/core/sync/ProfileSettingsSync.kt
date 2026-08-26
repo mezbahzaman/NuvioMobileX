@@ -37,6 +37,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -145,6 +146,10 @@ object ProfileSettingsSync {
 
                 log.i { "pull(profileId=$profileId) — applied remote settings blob" }
                 true
+            } catch (error: CancellationException) {
+                // A cancelled cycle (profile switch, account sync teardown) is not a failure:
+                // rethrow so structured cancellation works instead of logging "FAILED".
+                throw error
             } catch (error: Exception) {
                 log.e(error) { "pull(profileId=$profileId) — FAILED" }
                 false
@@ -157,15 +162,19 @@ object ProfileSettingsSync {
     suspend fun pushCurrentProfileToRemote(): Boolean {
         ensureRepositoriesLoaded()
         return syncMutex.withLock {
-            runCatching {
+            try {
                 val profileId = ProfileRepository.activeProfileId
                 val blob = exportSettingsBlob()
-                if (ProfileRepository.activeProfileId != profileId) return@runCatching false
+                if (ProfileRepository.activeProfileId != profileId) return@withLock false
                 pushToRemoteLocked(profileId, blob)
                 true
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                // Never swallow cancellation — see pull().
+                throw error
+            } catch (error: Exception) {
                 log.e(error) { "pushCurrentProfileToRemote() — FAILED" }
-            }.getOrDefault(false)
+                false
+            }
         }
     }
 

@@ -106,8 +106,10 @@ object AndroidAppUpdaterPlatform {
             try {
                 context.packageManager.canRequestPackageInstalls()
             } catch (_: SecurityException) {
-            
-                true
+                // Fail CLOSED: a SecurityException here means we could not confirm the grant.
+                // Reporting `true` skipped the unknown-sources dialog and let the install
+                // silently fail at the package installer instead.
+                false
             }
         } else {
             true

@@ -1178,6 +1178,10 @@ private fun LibmpvPlayerSurface(
                         }
                     }
                     MPV.mpvEvent.MPV_EVENT_END_FILE -> {
+                        // reason: 0=eof 1=redirect 2=stop 3=quit 4=error. Only "error" is fatal —
+                        // eof/stop fire on every normal teardown and source switch.
+                        val endFileReason = data.nodeInt("reason")
+                        val endFileError = data.nodeInt("error")
                         coroutineScope.launch(Dispatchers.Main.immediate) {
                             val snapshot = view.snapshot()
                             Log.w(
@@ -1186,11 +1190,18 @@ private fun LibmpvPlayerSurface(
                                     "elapsedMs=${diagnosticElapsedSince(playbackDiagnostics.prepareStartedAtMs)} " +
                                     "positionMs=${snapshot.positionMs} bufferedMs=${snapshot.bufferedPositionMs} " +
                                     "durationMs=${snapshot.durationMs} eof=${snapshot.isEnded} " +
+                                    "reason=$endFileReason error=$endFileError " +
                                     "data=${diagnosticPlayerMessage(data.toJson())}",
                             )
                             latestOnSnapshot.value(snapshot)
                             nowPlayingController?.syncPlayback(snapshot)
                             view.keepScreenOn = view.shouldKeepScreenOn()
+                            if (endFileReason == MPV_END_FILE_REASON_ERROR) {
+                                // A failed open/load used to end here silently: VOD froze on a
+                                // paused frame and live spun forever (idle && duration<=0).
+                                // Surfacing it lets the screen's error/recovery path run.
+                                latestOnError.value(mpvEndFileErrorMessage(endFileError))
+                            }
                         }
                     }
                 }
@@ -1485,6 +1496,12 @@ private class NuvioLibmpvView(
                     stage = "destroy_timeout",
                     destroyWaitMs = SystemClock.elapsedRealtime() - releaseStartedAtMs,
                 )
+                // A hung or failed mpv_terminate_destroy used to keep this lease open
+                // forever, which deadlocked every successor's whenReady — one wedged
+                // teardown permanently disabled libmpv for the process (black screen,
+                // no error, no fallback). Force-complete after the watchdog so playback
+                // can continue; a possible overlapping-core leak beats a dead player.
+                lifecycleLease.complete()
             }
         }, MPV_DESTROY_WATCHDOG_MS)
     }
@@ -2114,6 +2131,22 @@ private class NuvioLibmpvView(
 }
 
 private const val MPV_DESTROY_WATCHDOG_MS = 20_000L
+
+// mpv_event_end_file.reason === MPV_END_FILE_REASON_ERROR
+private const val MPV_END_FILE_REASON_ERROR = 4
+
+// libmpv error codes (enum mpv_error) that can surface via END_FILE.
+private fun mpvEndFileErrorMessage(errorCode: Int?): String = when (errorCode) {
+    -14 -> "Failed to load stream (source unreachable or invalid)"
+    -13 -> "Playback command failed"
+    -18 -> "Unrecognized stream format"
+    -19 -> "Stream format not supported"
+    -17 -> "Nothing to play (empty stream)"
+    -15 -> "Audio output initialization failed"
+    -16 -> "Video output initialization failed"
+    null -> "Playback failed"
+    else -> "Playback failed (mpv error $errorCode)"
+}
 
 private data class LibmpvTrack(
     val id: Int,
