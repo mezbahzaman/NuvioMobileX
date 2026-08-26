@@ -67,9 +67,15 @@ jobs:
             V="${GITHUB_REF_NAME#v}"
             DRAFT="false"
           fi
+          BASE_VERSION_CODE=$(awk -F= '$1 == "CURRENT_PROJECT_VERSION" { gsub(/[[:space:]]/, "", $2); print $2; exit }' iosApp/Configuration/Version.xcconfig)
+          case "$BASE_VERSION_CODE" in
+            ''|*[!0-9]*) echo "Invalid CURRENT_PROJECT_VERSION: $BASE_VERSION_CODE" >&2; exit 1 ;;
+          esac
+          VERSION_CODE=$((BASE_VERSION_CODE + GITHUB_RUN_NUMBER))
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
           echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -167,7 +173,7 @@ jobs:
             -x :androidApp:uploadPostHogProguardMappingsFullRelease \
             -Pandroid.injected.build.abi=arm64-v8a \
             -PversionNameOverride="${{ steps.ver.outputs.version }}" \
-            -PversionCodeOverride="${{ github.run_number }}" --stacktrace
+            -PversionCodeOverride="${{ steps.ver.outputs.version_code }}" --stacktrace
 
       - name: Build signed production APK + AAB
         if: steps.ver.outputs.draft != 'true'
@@ -179,7 +185,7 @@ jobs:
         run: |
           ./gradlew :androidApp:assembleFullRelease :androidApp:bundleFullRelease \
             -PversionNameOverride="${{ steps.ver.outputs.version }}" \
-            -PversionCodeOverride="${{ github.run_number }}" --stacktrace
+            -PversionCodeOverride="${{ steps.ver.outputs.version_code }}" --stacktrace
 
       - name: Decode Play upload keystore
         if: steps.ver.outputs.draft != 'true'
@@ -195,13 +201,50 @@ jobs:
         run: |
           ./gradlew :androidApp:bundlePlaystoreRelease \
             -PversionNameOverride="${{ steps.ver.outputs.version }}" \
-            -PversionCodeOverride="${{ github.run_number }}" --stacktrace
+            -PversionCodeOverride="${{ steps.ver.outputs.version_code }}" --stacktrace
+
+      - name: Verify draft APK
+        if: steps.ver.outputs.draft == 'true'
+        env:
+          EXPECTED_VERSION_CODE: ${{ steps.ver.outputs.version_code }}
+          EXPECTED_VERSION_NAME: ${{ steps.ver.outputs.version }}
+        run: |
+          APK=$(find androidApp/build -type f -name '*arm64-v8a*.apk' -print -quit)
+          test -n "$APK" || { echo "No arm64-v8a APK was produced" >&2; exit 1; }
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          ZIPALIGN="$ANDROID_HOME/build-tools/36.0.0/zipalign"
+          test -x "$APKSIGNER" || { echo "apksigner is missing" >&2; exit 1; }
+          test -x "$AAPT2" || { echo "aapt2 is missing" >&2; exit 1; }
+          test -x "$ZIPALIGN" || { echo "zipalign is missing" >&2; exit 1; }
+          SIGNATURE_INFO=$("$APKSIGNER" verify --verbose --print-certs "$APK")
+          printf '%s\n' "$SIGNATURE_INFO"
+          case "$SIGNATURE_INFO" in
+            *"Signer #1 certificate SHA-256 digest: ba6b5e475b46407a0c0938a3d1c7dea8f601a86fd43b4a760e2672920eb23e0d"*) ;;
+            *) echo "APK was signed by the wrong certificate" >&2; exit 1 ;;
+          esac
+          "$ZIPALIGN" -c 4 "$APK"
+          BADGING=$("$AAPT2" dump badging "$APK")
+          case "$BADGING" in
+            *"package: name='com.tuvora.mobile'"*) ;;
+            *) echo "Unexpected package in APK" >&2; exit 1 ;;
+          esac
+          case "$BADGING" in
+            *"versionCode='$EXPECTED_VERSION_CODE'"*"versionName='$EXPECTED_VERSION_NAME'"*) ;;
+            *) echo "Unexpected APK version" >&2; exit 1 ;;
+          esac
+          NATIVE_CODE=$(printf '%s\n' "$BADGING" | sed -n '/^native-code:/p')
+          test "$NATIVE_CODE" = "native-code: 'arm64-v8a'" || {
+            echo "APK is not arm64-v8a-only: $NATIVE_CODE" >&2
+            exit 1
+          }
+          echo "DRAFT_APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Collect artifacts
         run: |
           mkdir -p dist
           if [ "${{ steps.ver.outputs.draft }}" = "true" ]; then
-            APK=$(find androidApp/build -type f -name '*arm64-v8a*.apk' -print -quit)
+            APK="${DRAFT_APK_PATH:-}"
             if [ -z "$APK" ]; then
               APK=$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)
             fi
@@ -227,8 +270,14 @@ jobs:
           if [ "${{ steps.ver.outputs.draft }}" = "true" ]; then
             release_args+=(--draft)
           fi
-          gh release create "${release_args[@]}" dist/* || \
-          gh release upload "${{ steps.ver.outputs.tag }}" dist/* --clobber
+          if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.ver.outputs.tag }}" dist/* --clobber
+            gh release edit "${{ steps.ver.outputs.tag }}" \
+              --target "${GITHUB_SHA}" \
+              --title "Tuvora ${{ steps.ver.outputs.version }}"
+          else
+            gh release create "${release_args[@]}" dist/*
+          fi
 
       # Play publishing runs LAST on purpose. It used to sit before the GitHub release,
       # so a Play rejection (a re-run reuses github.run_number, and Play refuses a
