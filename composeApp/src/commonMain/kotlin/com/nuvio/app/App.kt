@@ -96,6 +96,7 @@ import com.nuvio.app.core.deeplink.AppDeepLinkRepository
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.sync.AppForegroundMonitor
+import com.nuvio.app.core.sync.foregroundEvents
 import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.core.sync.RealtimeSyncConfig
 import com.nuvio.app.core.sync.RealtimeSyncInvalidationService
@@ -1216,7 +1217,7 @@ private fun MainAppContent(
 
     LaunchedEffect(Unit) {
         if (!ownsAppRuntime) return@LaunchedEffect
-        AppForegroundMonitor.events().collect {
+        AppForegroundMonitor.events().foregroundEvents().collect {
             NetworkStatusRepository.requestForegroundRefresh()
             // DeviceSessionRegistration (register_current_device RPC) does not exist on the
             // self-hosted backend — the fork reports devices via SyncDeviceReporter; left inert.
@@ -1397,7 +1398,7 @@ private fun MainAppContent(
 
         val activeProfileId = profileState.activeProfile?.profileIndex ?: return@LaunchedEffect
         SyncManager.pullAllForProfile(activeProfileId)
-        AppForegroundMonitor.events().collect {
+        AppForegroundMonitor.events().foregroundEvents().collect {
             SyncManager.requestForegroundPull(activeProfileId, force = true)
         }
     }
