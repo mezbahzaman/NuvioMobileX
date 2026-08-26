@@ -619,6 +619,12 @@ final class MPVPlayerViewController: UIViewController {
         checkError(mpv_set_option_string(mpv, "ao", Self.defaultAudioOutput))
         checkError(mpv_set_option_string(mpv, "audio-channels", "auto"))
         checkError(mpv_set_option_string(mpv, "audio-fallback-to-null", "yes"))
+        // No youtube-dl/yt-dlp can exist on iOS (no subprocess spawning), and mpv's ytdl_hook is
+        // FATAL without one: for an EXTENSIONLESS live URL (common in M3U playlists —
+        // /live/play/<token>/<id>) the hook takes over the load, fails, and ends the file instead
+        // of falling through to ffmpeg (device-reproduced on Android TV, 1.5.8; same hook ships in
+        // MPVKit). .ts URLs bypass the hook, which masked this on Xtream. Go straight to ffmpeg.
+        checkError(mpv_set_option_string(mpv, "ytdl", "no"))
         checkError(mpv_set_option_string(mpv, "vulkan-swap-mode", "fifo"))
         checkError(mpv_set_option_string(mpv, "vulkan-queue-count", "1"))
         checkError(mpv_set_option_string(mpv, "vulkan-async-compute", "no"))
