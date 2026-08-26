@@ -164,6 +164,7 @@ jobs:
           NUVIO_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           ./gradlew :androidApp:assembleFullRelease \
+            -x :androidApp:uploadPostHogProguardMappingsFullRelease \
             -Pandroid.injected.build.abi=arm64-v8a \
             -PversionNameOverride="${{ steps.ver.outputs.version }}" \
             -PversionCodeOverride="${{ github.run_number }}" --stacktrace
