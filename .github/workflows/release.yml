@@ -201,14 +201,14 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ steps.ver.outputs.draft }}" = "true" ]; then
-            APK=$(find androidApp/build/outputs/apk/full/release -type f -name '*arm64-v8a*.apk' | head -1)
+            APK=$(find androidApp/build -type f -name '*arm64-v8a*.apk' -print -quit)
             if [ -z "$APK" ]; then
-              APK=$(find androidApp/build/outputs/apk/full/release -type f -name '*.apk' | head -1)
+              APK=$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)
             fi
             test -n "$APK" || { echo "No arm64-v8a APK was produced" >&2; exit 1; }
             cp "$APK" "dist/Tuvora-${{ steps.ver.outputs.version }}-arm64-v8a.apk"
           else
-            cp "$(find androidApp/build/outputs/apk/full/release -type f -name '*.apk' | head -1)" "dist/Tuvora-${{ steps.ver.outputs.version }}.apk"
+            cp "$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)" "dist/Tuvora-${{ steps.ver.outputs.version }}.apk"
             cp "$(find androidApp/build/outputs/bundle/fullRelease -name '*.aab' | head -1)" "dist/Tuvora-${{ steps.ver.outputs.version }}.aab"
             cp "$(find androidApp/build/outputs/bundle/playstoreRelease -name '*.aab' | head -1)" "dist/Tuvora-${{ steps.ver.outputs.version }}-playstore.aab"
           fi
