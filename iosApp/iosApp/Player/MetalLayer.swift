@@ -55,6 +55,7 @@ class MetalLayer: CAMetalLayer {
 
     private var storedIsDrawableCaptureArmed = false
     private var storedCapturesWithoutPresentation = false
+    private var storedHasAcquiredDrawable = false
     private var pendingDrawable: CAMetalDrawable?
     // A drawable size handed over from the MAIN thread (layout during a fullscreen/orientation
     // resize) to be applied on the render thread inside nextDrawable(). See setPendingDrawableSize.
@@ -75,6 +76,17 @@ class MetalLayer: CAMetalLayer {
         captureLock.lock()
         defer { captureLock.unlock() }
         return isRenderingSuspended
+    }
+
+    /// True once mpv's render thread has successfully acquired at least one drawable — i.e. the
+    /// swapchain exists and rendering is live. Before this flips, the drawable pool is not being
+    /// churned by a render thread, so the layer's drawableSize can be established directly from
+    /// Main; after it, Main must hand resizes to nextDrawable() (setPendingDrawableSize) to avoid
+    /// the iOS-26 drawable-pool heap race (EXC_BREAKPOINT _xzm_corruption_detected).
+    var hasAcquiredDrawable: Bool {
+        captureLock.lock()
+        defer { captureLock.unlock() }
+        return storedHasAcquiredDrawable
     }
 
     override var drawableSize: CGSize {
@@ -195,6 +207,7 @@ class MetalLayer: CAMetalLayer {
             }
         } else {
             consecutiveAcquisitionFailures = 0
+            storedHasAcquiredDrawable = true
             if isRenderingSuspended && !isSuspensionLatched {
                 isRenderingSuspended = false
                 lastSuspendedProbeTime = 0

@@ -576,13 +576,24 @@ final class MPVPlayerViewController: UIViewController {
         metalLayer.position = .zero
         metalLayer.bounds = CGRect(origin: .zero, size: bounds.size)
         if drawableSize != lastAppliedDrawableSize {
-            // mpv's moltenvk context polls drawableSize and resizes its swapchain on ITS OWN render
-            // thread. Writing drawableSize here (Main, during the fullscreen/orientation resize) races
-            // that read and corrupts the Metal heap (iOS 26 EXC_BREAKPOINT _xzm_corruption_detected).
-            // Hand the size to MetalLayer, which applies it inside nextDrawable() on the render thread.
-            // contentsScale/position/bounds stay on Main below — they are display geometry and do not
-            // size the drawable pool once drawableSize is explicit.
-            metalLayer.setPendingDrawableSize(drawableSize)
+            if metalLayer.hasAcquiredDrawable {
+                // mpv is presenting: its moltenvk context polls drawableSize and recreates its
+                // swapchain on ITS OWN render thread. Writing drawableSize here (Main, during a
+                // fullscreen/orientation resize) races that read and corrupts the Metal heap (iOS 26
+                // EXC_BREAKPOINT _xzm_corruption_detected). Hand the size to MetalLayer, which applies
+                // it inside nextDrawable() on the render thread. contentsScale/position/bounds stay on
+                // Main below — they are display geometry and do not size the drawable pool.
+                metalLayer.setPendingDrawableSize(drawableSize)
+            } else {
+                // Bootstrap (no drawable acquired yet): mpv is NOT presenting, so no render thread is
+                // churning the drawable pool and a Main-thread write cannot race it. We MUST set the
+                // size here — mpv reads drawableSize when it first creates its swapchain (setupMpv()
+                // runs right after this in viewDidLoad), and if it stays 0-sized the swapchain never
+                // comes up, nextDrawable() is never called, and the deferred (setPendingDrawableSize)
+                // path can never fire → permanent black video with audio only. Matches the pipfork
+                // reference, which always writes drawableSize on Main.
+                metalLayer.drawableSize = drawableSize
+            }
             lastAppliedDrawableSize = drawableSize
         }
         CATransaction.commit()
