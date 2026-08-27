@@ -509,7 +509,7 @@ fun App(
                         }
                     }
                 } else {
-                    coil3.EventListener.EMPTY
+                    object : coil3.EventListener() {}
                 },
             )
             .configurePlatformImageLoader(context)
