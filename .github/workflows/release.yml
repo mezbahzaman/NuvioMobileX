@@ -171,7 +171,6 @@ jobs:
         run: |
           ./gradlew :androidApp:assembleFullRelease \
             -x :androidApp:uploadPostHogProguardMappingsFullRelease \
-            -Pandroid.injected.build.abi=arm64-v8a \
             -PversionNameOverride="${{ steps.ver.outputs.version }}" \
             -PversionCodeOverride="${{ steps.ver.outputs.version_code }}" --stacktrace
 
@@ -230,6 +229,9 @@ jobs:
             *) echo "Unexpected package in APK" >&2; exit 1 ;;
           esac
           case "$BADGING" in
+            *"testOnly"*) echo "APK is test-only and cannot be installed" >&2; exit 1 ;;
+          esac
+          case "$BADGING" in
             *"versionCode='$EXPECTED_VERSION_CODE'"*"versionName='$EXPECTED_VERSION_NAME'"*) ;;
             *) echo "Unexpected APK version" >&2; exit 1 ;;
           esac
@@ -238,6 +240,13 @@ jobs:
             echo "APK is not arm64-v8a-only: $NATIVE_CODE" >&2
             exit 1
           }
+          APK_ENTRIES=$(unzip -Z1 "$APK")
+          for library in libmpv.so libavcodec.so libavformat.so libnuvio_engine.so libquickjs.so; do
+            case "$APK_ENTRIES" in
+              *"lib/arm64-v8a/$library"*) ;;
+              *) echo "APK is missing required native library: $library" >&2; exit 1 ;;
+            esac
+          done
           echo "DRAFT_APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Collect artifacts

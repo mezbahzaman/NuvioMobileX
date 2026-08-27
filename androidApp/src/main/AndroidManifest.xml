@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -20,11 +19,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:localeConfig="@xml/locale_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Nuvio"
-        android:testOnly="false"
-        android:versionCode="139"
-        android:versionName="1.5.9"
-        tools:replace="android:testOnly,android:versionCode,android:versionName">
+        android:theme="@style/Theme.Nuvio">
         <meta-data
             android:name="io.sentry.auto-init"
             android:value="false" />
