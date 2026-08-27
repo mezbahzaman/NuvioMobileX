@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import io.github.jan.supabase.functions.functions
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -25,7 +26,7 @@ internal object RadarFixturesClient {
         teamIds: Collection<String> = emptyList(),
     ): RadarFixturesResponse? {
         if (leagueIds.isEmpty() && livescoreSports.isEmpty() && teamIds.isEmpty()) return null
-        return runCatching {
+        return try {
             val body = buildJsonObject {
                 put("league_ids", buildJsonArray { leagueIds.forEach { add(it) } })
                 put("livescore_sports", buildJsonArray { livescoreSports.forEach { add(it) } })
@@ -36,11 +37,16 @@ internal object RadarFixturesClient {
                 body = body,
             )
             json.decodeFromString<RadarFixturesResponse>(response.bodyAsText())
-        }.onFailure { e -> log.e(e) { "fetch — FAILED" } }.getOrNull()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.e(e) { "fetch — FAILED" }
+            null
+        }
     }
 
     /** Broadcaster listings for one event (server caches 12h; empty on any failure). */
-    suspend fun fetchTv(eventId: String): List<RadarTvStation> = runCatching {
+    suspend fun fetchTv(eventId: String): List<RadarTvStation> = try {
         val body = buildJsonObject {
             put("tv_event_ids", buildJsonArray { add(eventId) })
         }
@@ -49,5 +55,10 @@ internal object RadarFixturesClient {
             body = body,
         )
         json.decodeFromString<RadarFixturesResponse>(response.bodyAsText()).tv[eventId].orEmpty()
-    }.onFailure { e -> log.e(e) { "tv fetch — FAILED" } }.getOrDefault(emptyList())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        log.e(e) { "tv fetch — FAILED" }
+        emptyList()
+    }
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -246,8 +247,15 @@ object RadarRepository {
             ).filter { it in RADAR_LIVESCORE_SPORTS }.toSet()
         _uiState.update { it.copy(loadingFixtures = true) }
         scope.launch {
-            val response = RadarFixturesClient.fetch(leagues, sports, teams)
+            var response = RadarFixturesClient.fetch(leagues, sports, teams)
             if (profileAtStart != currentProfileId) return@launch
+            // One immediate retry on failure before giving up until the next TTL window.
+            if (response == null) {
+                log.w { "refreshFixtures — first attempt failed, retrying in 3 s" }
+                delay(3_000L)
+                response = RadarFixturesClient.fetch(leagues, sports, teams)
+                if (profileAtStart != currentProfileId) return@launch
+            }
             if (response == null) {
                 _uiState.update { it.copy(loadingFixtures = false) }
                 // Failed fetch: keep whatever we had (offline shows the cache), retry next TTL.
