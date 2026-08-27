@@ -570,9 +570,9 @@ fun HomeScreen(
         buildHomeCatalogRefreshSignature(enabledAddons)
     }
 
-    LaunchedEffect(catalogRefreshKey) {
-        if (catalogRefreshKey.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(catalogRefreshKey, enabledAddons) {
         HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
+        if (catalogRefreshKey.isEmpty()) return@LaunchedEffect
         HomeRepository.refresh(enabledAddons)
     }
 
