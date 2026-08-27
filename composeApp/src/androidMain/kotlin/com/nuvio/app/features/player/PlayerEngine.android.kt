@@ -612,7 +612,7 @@ private fun ExoPlayerSurface(
                 return
             }
             latestOnError.value(
-                error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) },
+                error.localizedMessage ?: context.resources.getString(R.string.player_unable_to_play_stream),
                 error.isLinkAuthFailure(),
             )
         }
@@ -2113,7 +2113,7 @@ private class NuvioLibmpvView(
                     ?: node.nodeString("codec")
                 val language = node.nodeString("lang") ?: normalizeLanguageCode(rawLabel)
                 val label = rawLabel?.takeIf { it.isNotBlank() }
-                    ?: runBlocking { getString(Res.string.compose_player_track_number, index + 1) }
+                    ?: context.resources.getString(R.string.compose_player_track_number, index + 1)
                 LibmpvTrack(
                     id = id,
                     label = label,
@@ -2520,7 +2520,7 @@ private fun ExoPlayer.extractAudioTracks(context: Context): List<AudioTrack> {
         if (group.type != C.TRACK_TYPE_AUDIO) continue
         val format = group.mediaTrackGroup.getFormat(0)
         val label = trackNameProvider.getTrackName(format).takeIf { it.isNotBlank() }
-            ?: runBlocking { getString(Res.string.compose_player_track_number, idx + 1) }
+            ?: context.resources.getString(R.string.compose_player_track_number, idx + 1)
         tracks.add(
             AudioTrack(
                 index = idx,

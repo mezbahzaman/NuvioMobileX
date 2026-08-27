@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
+import android.os.StatFs
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URI
@@ -66,6 +67,15 @@ internal actual object DownloadsPlatformDownloader {
             val downloadsDir = File(context.filesDir, "downloads").apply { mkdirs() }
             val destination = File(downloadsDir, fileName)
             val tempFile = File(downloadsDir, "$fileName.part")
+
+            // Fail early if the device has less than 50 MB free — avoids filling the disk
+            // and crashing the app (and other apps) with ENOSPC.
+            val stats = StatFs(downloadsDir.absolutePath)
+            val availableBytes = stats.availableBlocksLong * stats.blockSizeLong
+            if (availableBytes < 50L * 1024 * 1024) {
+                onFailure("Insufficient storage — at least 50 MB free is required.")
+                return@launch
+            }
 
             try {
                 var resumeFromBytes = tempFile.takeIf { it.exists() }?.length()?.coerceAtLeast(0L) ?: 0L

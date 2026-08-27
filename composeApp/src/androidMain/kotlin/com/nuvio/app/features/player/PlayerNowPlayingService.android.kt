@@ -90,15 +90,17 @@ private sealed interface PlayerNowPlayingServiceCommand {
 }
 
 private object PlayerNowPlayingServiceController {
-    private const val START_RETRY_COOLDOWN_MS = 30_000L
+    private const val START_RETRY_BASE_MS = 5_000L
+    private const val START_RETRY_MAX_MS = 120_000L
 
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "NuvioNowPlayingService").apply { isDaemon = true }
     }
     private val startRequested = AtomicBoolean(false)
     // When promoting to foreground fails (Android 12+ background-FGS-start restrictions are the
-    // usual cause), back off: onDestroy -> republish -> start -> fail -> destroy used to spin
-    // for as long as playback kept ticking.
+    // usual cause), back off exponentially: onDestroy -> republish -> start -> fail -> destroy
+    // used to spin for as long as playback kept ticking with a fixed 30s cooldown.
+    private val consecutiveFailures = java.util.concurrent.atomic.AtomicInteger(0)
     private val lastFailedStartAtMs = AtomicLong(0L)
     private val commands = ConflatedTaskDispatcher<PlayerNowPlayingServiceCommand>(
         schedule = { task -> executor.execute(task) },
@@ -107,10 +109,16 @@ private object PlayerNowPlayingServiceController {
 
     fun noteForegroundPromotionFailed() {
         lastFailedStartAtMs.set(android.os.SystemClock.elapsedRealtime())
+        consecutiveFailures.incrementAndGet()
     }
 
-    private fun startFailureCoolingDown(): Boolean =
-        android.os.SystemClock.elapsedRealtime() - lastFailedStartAtMs.get() < START_RETRY_COOLDOWN_MS
+    private fun startFailureCoolingDown(): Boolean {
+        val failures = consecutiveFailures.get()
+        if (failures == 0) return false
+        val cooldownMs = (START_RETRY_BASE_MS * (1L shl (failures - 1).coerceAtMost(5)))
+            .coerceAtMost(START_RETRY_MAX_MS)
+        return android.os.SystemClock.elapsedRealtime() - lastFailedStartAtMs.get() < cooldownMs
+    }
 
     fun publish(context: Context, notification: Notification) {
         PlayerNowPlayingServiceState.notification = notification
@@ -157,6 +165,7 @@ private object PlayerNowPlayingServiceController {
                 noteForegroundPromotionFailed()
                 return
             }
+            consecutiveFailures.set(0)
         }
         if (PlayerNowPlayingServiceState.notification !== command.notification) return
         runCatching {

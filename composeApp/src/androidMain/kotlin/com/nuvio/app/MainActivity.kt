@@ -10,6 +10,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import com.nuvio.app.core.auth.AuthStorage
 import com.nuvio.app.core.network.ServerConfigurationStorage
 import com.nuvio.app.core.diagnostics.SentryInitializer
@@ -184,6 +188,18 @@ open class MainActivity : AppCompatActivity() {
         setContent {
             installFeatures {
                 App()
+            }
+        }
+
+        // Proactively request POST_NOTIFICATIONS on Android 13+ so download and episode
+        // release notifications are enabled without forcing the user into Settings first.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            lifecycleScope.launch {
+                // Wait until the activity is in the foreground — requestPermissions needs it.
+                repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    runCatching { EpisodeReleaseNotificationPlatform.requestAuthorization() }
+                    return@repeatOnLifecycle
+                }
             }
         }
     }

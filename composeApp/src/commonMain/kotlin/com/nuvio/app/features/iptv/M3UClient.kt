@@ -190,7 +190,7 @@ object M3UClient : IptvClient {
                 return first
             }
             var salt = 1
-            while (true) {
+            while (salt < 10_000) {
                 val candidate = sidOf("$key alt$salt")
                 if (usedM3UIds.add(candidate)) {
                     m3uIdByKey[key] = candidate
@@ -198,6 +198,9 @@ object M3UClient : IptvClient {
                 }
                 salt++
             }
+            // Extremely unlikely — 10k salts exhausted. Log and use the raw FNV as a last resort.
+            log.w { "FNV-31 collision probe exhausted for key=$key — reusing raw hash" }
+            return first
         }
 
         /** The episodes table is keyed (playlist_id, episode_id), so episode-id collisions span all
@@ -210,7 +213,7 @@ object M3UClient : IptvClient {
                 return first
             }
             var salt = 1
-            while (true) {
+            while (salt < 10_000) {
                 val candidate = episodeIdOf("$url alt$salt")
                 if (usedEpisodeIds.add(candidate)) {
                     episodeIdByUrl[url] = candidate
@@ -218,6 +221,8 @@ object M3UClient : IptvClient {
                 }
                 salt++
             }
+            log.w { "Episode ID collision probe exhausted for url=$url — reusing raw hash" }
+            return first
         }
 
         private fun flush() {
