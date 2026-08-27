@@ -245,6 +245,7 @@ object RadarRepository {
                 // A followed club may be the only reason a sport is on screen at all.
                 _uiState.value.teamFollows.map { it.sport.lowercase() }
             ).filter { it in RADAR_LIVESCORE_SPORTS }.toSet()
+        log.d { "refreshFixtures — force=$force leagues=${leagues.size} teams=${teams.size} sports=$sports" }
         _uiState.update { it.copy(loadingFixtures = true) }
         scope.launch {
             var response = RadarFixturesClient.fetch(leagues, sports, teams)
@@ -257,11 +258,13 @@ object RadarRepository {
                 if (profileAtStart != currentProfileId) return@launch
             }
             if (response == null) {
+                log.e { "refreshFixtures — FAILED after retry; keeping cache" }
                 _uiState.update { it.copy(loadingFixtures = false) }
                 // Failed fetch: keep whatever we had (offline shows the cache), retry next TTL.
                 lastFetchMark = null
                 return@launch
             }
+            log.d { "refreshFixtures — OK: ${response.fixtures.size} league fixtures, ${response.fixtures.values.sumOf { it.size }} total entries" }
             _uiState.update {
                 it.copy(
                     // Merge so leagues the server skipped (budget/partial) keep their cache.
@@ -400,6 +403,7 @@ object RadarRepository {
             } else {
                 without
             }
+            log.d { "toggleFollow — leagueId=${league.id} name=${league.name} followed=${follows.size}" }
             state.copy(follows = follows)
         }
         persist()

@@ -32,11 +32,16 @@ internal object RadarFixturesClient {
                 put("livescore_sports", buildJsonArray { livescoreSports.forEach { add(it) } })
                 put("team_ids", buildJsonArray { teamIds.forEach { add(it) } })
             }
+            log.d { "fetch — calling radar-fixtures with ${leagueIds.size} leagues, ${livescoreSports.size} sports, ${teamIds.size} teams" }
             val response = SupabaseProvider.client.functions.invoke(
                 function = "radar-fixtures",
                 body = body,
             )
-            json.decodeFromString<RadarFixturesResponse>(response.bodyAsText())
+            val text = response.bodyAsText()
+            log.d { "fetch — response status=${response.status} bodyLength=${text.length}" }
+            val parsed = json.decodeFromString<RadarFixturesResponse>(text)
+            log.d { "fetch — parsed: ${parsed.fixtures.size} league keys, total ${parsed.fixtures.values.sumOf { it.size }} fixtures" }
+            parsed
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
