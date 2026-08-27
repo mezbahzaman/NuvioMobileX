@@ -45,7 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -500,7 +500,7 @@ fun NuvioToastHost(
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
-    val toast by NuvioToastController.currentToast.collectAsState()
+    val toast by NuvioToastController.currentToast.collectAsStateWithLifecycle()
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val visibilityState = remember { MutableTransitionState(false) }
     var renderedToast by remember { mutableStateOf<NuvioToastMessage?>(null) }

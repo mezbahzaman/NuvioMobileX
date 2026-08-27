@@ -38,7 +38,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -155,8 +156,8 @@ internal fun LazyListScope.posterCustomizationSettingsContent(
         }
     }
     item {
-        CardDepthStyleRepository.ensureLoaded()
-        val cardDepthState by CardDepthStyleRepository.uiState.collectAsState()
+        LaunchedEffect(Unit) { CardDepthStyleRepository.ensureLoaded() }
+        val cardDepthState by CardDepthStyleRepository.uiState.collectAsStateWithLifecycle()
         SettingsSection(
             title = stringResource(Res.string.settings_card_depth_title),
             isTablet = isTablet,

@@ -7,9 +7,8 @@ import com.nuvio.app.features.player.LiveReplayLaunch
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Firewall ports for the three fork tab/route screens that App.kt hosts (IPTV hub, Sports hub, the
- * docked Live TV screen). App.kt owns the navigation and supplies the callbacks; the fork provides
- * the screen. Slot-inversion (as HomeSportsSection): App.kt never names the fork composables.
+ * Firewall ports for the fork tab/route screens that App.kt hosts (IPTV hub, the docked Live TV
+ * screen). App.kt owns the navigation and supplies the callbacks; the fork provides the screen.
  * No-op default (null section) renders nothing — correct when the feature is absent.
  */
 interface IptvHubContent {
@@ -21,17 +20,6 @@ interface IptvHubContent {
         onFavoriteLiveChannel: (String) -> Unit,
         onAddProvider: () -> Unit,
         scrollToTopRequests: Flow<Unit>,
-    )
-}
-
-interface SportsHubContent {
-    @Composable
-    fun Render(
-        modifier: Modifier,
-        onPlayChannel: (String) -> Unit,
-        onAddPlaylist: () -> Unit,
-        onOpenRecording: (String) -> Unit,
-        onPlayReplay: (SportsReplay) -> Unit,
     )
 }
 
@@ -51,13 +39,6 @@ object IptvHubContentAccess {
     private var content: IptvHubContent? = null
     fun register(c: IptvHubContent) { content = c }
     fun current(): IptvHubContent? = content
-    fun resetForTest() { content = null }
-}
-
-object SportsHubContentAccess {
-    private var content: SportsHubContent? = null
-    fun register(c: SportsHubContent) { content = c }
-    fun current(): SportsHubContent? = content
     fun resetForTest() { content = null }
 }
 

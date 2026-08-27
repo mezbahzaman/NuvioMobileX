@@ -28,26 +28,6 @@ internal actual object XtreamAccountStorage {
         preferences?.edit()?.putString("xtream_live_recents_$profileId", json)?.apply()
     }
 
-    actual fun loadRadarJson(profileId: Int): String? =
-        preferences?.getString("radar_state_$profileId", null)
-
-    actual fun saveRadarJson(profileId: Int, json: String) {
-        preferences?.edit()?.putString("radar_state_$profileId", json)?.apply()
-    }
-
-    actual fun loadRadarFixturesJson(profileId: Int): String? =
-        preferences?.getString("radar_fixtures_$profileId", null)
-
-    actual fun saveRadarFixturesJson(profileId: Int, json: String) {
-        preferences?.edit()?.putString("radar_fixtures_$profileId", json)?.apply()
-    }
-
-    actual fun loadRadarCatalogJson(profileId: Int): String? =
-        preferences?.getString("radar_catalog_$profileId", null)
-    actual fun saveRadarCatalogJson(profileId: Int, json: String) {
-        preferences?.edit()?.putString("radar_catalog_$profileId", json)?.apply()
-    }
-
     actual fun loadRefreshStateJson(profileId: Int): String? =
         preferences?.getString("xtream_refresh_state_$profileId", null)
 

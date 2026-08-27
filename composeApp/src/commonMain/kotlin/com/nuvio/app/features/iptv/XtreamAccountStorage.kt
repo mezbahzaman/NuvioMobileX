@@ -12,15 +12,6 @@ internal expect object XtreamAccountStorage {
     /** Recently-watched live channels (JSON), profile-scoped — for the Live TV Continue-Watching row. */
     fun loadRecentsJson(profileId: Int): String?
     fun saveRecentsJson(profileId: Int, json: String)
-    /** Sports Centre follows+prefs (JSON RadarLocalState), profile-scoped — rides this prefs bag to avoid new init plumbing. */
-    fun loadRadarJson(profileId: Int): String?
-    fun saveRadarJson(profileId: Int, json: String)
-    /** Last-fetched fixtures (JSON RadarFixturesResponse) so the Sports tab renders offline. */
-    fun loadRadarFixturesJson(profileId: Int): String?
-    fun saveRadarFixturesJson(profileId: Int, json: String)
-    /** Last good published league catalog (JSON RadarCachedCatalog) — cache, not user data. */
-    fun loadRadarCatalogJson(profileId: Int): String?
-    fun saveRadarCatalogJson(profileId: Int, json: String)
     /** Per-playlist last auto-refresh timestamps (JSON map id->epochMs), profile-scoped — P3 auto-refresh. */
     fun loadRefreshStateJson(profileId: Int): String?
     fun saveRefreshStateJson(profileId: Int, json: String)

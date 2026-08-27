@@ -11,7 +11,6 @@ import com.nuvio.app.core.contracts.IptvCatalogAccess
 import com.nuvio.app.core.contracts.IptvContentClassifierAccess
 import com.nuvio.app.features.iptv.XtreamContentClassifier
 import com.nuvio.app.features.iptv.XtreamSyncParticipant
-import com.nuvio.app.features.radar.RadarSyncParticipant
 import com.nuvio.app.core.contracts.SyncParticipantRegistry
 import com.nuvio.app.core.contracts.LocalStateCleanerRegistry
 import com.nuvio.app.features.iptv.XtreamRecentsCleaner
@@ -26,15 +25,12 @@ import com.nuvio.app.core.contracts.LocalIptvCatalog
 import com.nuvio.app.features.iptv.XtreamRepository
 import com.nuvio.app.core.contracts.ProfileChangeParticipants
 import com.nuvio.app.features.iptv.IptvProfileChange
-import com.nuvio.app.features.radar.RadarProfileChange
 import com.nuvio.app.core.contracts.HomeRecAccess
 import com.nuvio.app.core.rec.HomeRecBinderImpl
 import com.nuvio.app.core.contracts.IptvSettingsSectionAccess
 import com.nuvio.app.features.iptv.IptvSettingsSectionImpl
 import com.nuvio.app.core.contracts.LiveRecentsAccess
 import com.nuvio.app.features.iptv.XtreamLiveRecentsProvider
-import com.nuvio.app.core.contracts.HomeSportsSectionAccess
-import com.nuvio.app.features.radar.RadarHomeSportsSection
 import com.nuvio.app.core.contracts.StreamSourceAccess
 import com.nuvio.app.features.iptv.XtreamStreamSourceProvider
 import com.nuvio.app.core.contracts.MetaSourceAccess
@@ -45,8 +41,6 @@ import com.nuvio.app.core.contracts.LivePlaybackAccess
 import com.nuvio.app.features.iptv.XtreamLivePlaybackProvider
 import com.nuvio.app.core.contracts.IptvHubContentAccess
 import com.nuvio.app.features.iptv.XtreamHubContent
-import com.nuvio.app.core.contracts.SportsHubContentAccess
-import com.nuvio.app.features.radar.RadarHubContent
 import com.nuvio.app.core.contracts.LiveTvContentAccess
 import com.nuvio.app.features.livetv.LiveTvContentImpl
 
@@ -85,7 +79,6 @@ fun registerFeatureContributions() {
     IptvCatalogAccess.register(XtreamRepository)
     IptvContentClassifierAccess.register(XtreamContentClassifier)
     SyncParticipantRegistry.register(XtreamSyncParticipant)
-    SyncParticipantRegistry.register(RadarSyncParticipant)
     LocalStateCleanerRegistry.register(XtreamRecentsCleaner)
     LocalStateCleanerRegistry.register(RecLocalStateCleaner)
     LocalStateCleanerRegistry.register(XtreamAccountsCleaner)
@@ -93,17 +86,14 @@ fun registerFeatureContributions() {
     RecTrackingAccess.register(RecPlaybackReporterImpl)
     RecTrackingAccess.registerSettings(RecSettingsImpl)
     ProfileChangeParticipants.register(IptvProfileChange)
-    ProfileChangeParticipants.register(RadarProfileChange)
     HomeRecAccess.register(HomeRecBinderImpl)
     IptvSettingsSectionAccess.register(IptvSettingsSectionImpl)
     LiveRecentsAccess.register(XtreamLiveRecentsProvider)
-    HomeSportsSectionAccess.register(RadarHomeSportsSection)
     StreamSourceAccess.register(XtreamStreamSourceProvider)
     MetaSourceAccess.register(XtreamMetaSource)
     PlaybackGateAccess.register(IptvPlaybackGateAdapter)
     LivePlaybackAccess.register(XtreamLivePlaybackProvider)
     IptvHubContentAccess.register(XtreamHubContent)
-    SportsHubContentAccess.register(RadarHubContent)
     LiveTvContentAccess.register(LiveTvContentImpl)
     FeatureRegistry.markInitialized()
 }

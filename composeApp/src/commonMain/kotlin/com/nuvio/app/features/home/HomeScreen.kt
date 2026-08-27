@@ -123,9 +123,6 @@ fun HomeScreen(
     continueWatchingDisintegrationRequest: DisintegrationRequest<String>? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
-    onOpenSportsTab: () -> Unit = {},
-    onPlaySportsChannel: (String) -> Unit = {},
-    onPlaySportsReplay: (com.nuvio.app.core.contracts.SportsReplay) -> Unit = {},
     onAddIptvPlaylist: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
@@ -134,7 +131,6 @@ fun HomeScreen(
         ContinueWatchingPreferencesRepository.ensureLoaded()
         WatchedRepository.ensureLoaded()
         WatchProgressRepository.ensureLoaded()
-        com.nuvio.app.core.contracts.HomeSportsSectionAccess.current()?.ensureLoaded()
         val authState = AuthRepository.state.value
         if (authState !is AuthState.Authenticated || authState.isAnonymous) {
             WatchProgressSourceCoordinator.ensureStarted()
@@ -942,17 +938,6 @@ fun HomeScreen(
                         )
                     }
                 }
-            }
-
-            // Sports Centre home presence: featured-event rail (opt-in) + set-up-Radar promo.
-            item(key = "radar-home-section") {
-                com.nuvio.app.core.contracts.HomeSportsSectionAccess.current()?.Render(
-                    onOpenSportsTab = onOpenSportsTab,
-                    onPlayChannel = onPlaySportsChannel,
-                    onAddPlaylist = onAddIptvPlaylist,
-                    onOpenRecordingPoster = { onPosterClick?.invoke(it) },
-                    onPlayReplay = onPlaySportsReplay,
-                )
             }
 
             when {

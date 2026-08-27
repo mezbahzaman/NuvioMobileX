@@ -18,7 +18,6 @@ object RecSurface {
     const val SEARCH = "search"
     const val DETAILS = "details"
     const val LIVE = "live"
-    const val SPORTS = "sports"
 
     /** Addon catalogues get their own surface so their rows stay separable in training. */
     fun addon(addonId: String): String = "addon:${addonId.take(56)}"

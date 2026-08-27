@@ -84,11 +84,9 @@ import androidx.savedstate.serialization.SavedStateConfiguration
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.CachePolicy
-import coil3.request.crossfade
 import coil3.svg.SvgDecoder
 import com.nuvio.app.core.analytics.Breadcrumbs
 import com.nuvio.app.core.build.AppFeaturePolicy
-import com.nuvio.app.core.contracts.SportsReplay
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.deeplink.AppDeepLink
@@ -280,7 +278,6 @@ import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
 import nuvio.composeapp.generated.resources.sidebar_library
 import nuvio.composeapp.generated.resources.sidebar_search
-import nuvio.composeapp.generated.resources.sidebar_sports
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
@@ -392,7 +389,6 @@ enum class AppScreenTab {
     Search,
     Library,
     Iptv,
-    Sports,
     Settings,
     ;
 
@@ -410,7 +406,6 @@ private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab? = when (t
     AppScreenTab.Library -> NativeNavigationTab.Library
     AppScreenTab.Settings -> NativeNavigationTab.Settings
     AppScreenTab.Iptv -> NativeNavigationTab.Iptv
-    AppScreenTab.Sports -> NativeNavigationTab.Sports
 }
 
 private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
@@ -418,7 +413,6 @@ private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Search -> AppScreenTab.Search
     NativeNavigationTab.Library -> AppScreenTab.Library
     NativeNavigationTab.Iptv -> AppScreenTab.Iptv
-    NativeNavigationTab.Sports -> AppScreenTab.Sports
     NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
 
@@ -472,12 +466,11 @@ fun App(
     onReplace: ((AppRoute) -> Unit)? = null,
     onActivate: ((AppScreenTab) -> Unit)? = null,
     onAppReady: ((Boolean) -> Unit)? = null,
-    onTabTitles: ((home: String, search: String, library: String, iptv: String, sports: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
+    onTabTitles: ((home: String, search: String, library: String, iptv: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
     nativeProfileSwitcherController: NativeProfileSwitcherController? = null,
 ) {
     setSingletonImageLoaderFactory { context ->
         ImageLoader.Builder(context)
-            .crossfade(true)
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .components {
@@ -488,38 +481,37 @@ fun App(
                     )
                 )
             }
-            // TEMPORARY field diagnosis (HubTrace): is a poster request even ISSUED, does it hit
-            // the memory/disk cache, how long does the network leg take, and does it fail? No-op
-            // unless HubTrace.enabled (debug builds only).
-            .eventListener(object : coil3.EventListener() {
-                private val startedAt = mutableMapOf<String, Long>()
-                private fun key(request: coil3.request.ImageRequest) = request.data.toString().takeLast(60)
-                override fun onStart(request: coil3.request.ImageRequest) {
-                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
-                    startedAt[key(request)] = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()
-                    com.nuvio.app.core.diag.HubTrace.log("image", "start") { key(request) }
-                }
-                override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
-                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
-                    val k = key(request)
-                    val t0 = startedAt.remove(k)
-                    com.nuvio.app.core.diag.HubTrace.log("image", "success") {
-                        "src=${result.dataSource} took=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms $k"
+            .eventListener(
+                if (com.nuvio.app.core.diag.HubTrace.enabled) {
+                    object : coil3.EventListener() {
+                        private val startedAt = mutableMapOf<String, Long>()
+                        private fun key(request: coil3.request.ImageRequest) = request.data.toString().takeLast(60)
+                        override fun onStart(request: coil3.request.ImageRequest) {
+                            startedAt[key(request)] = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()
+                            com.nuvio.app.core.diag.HubTrace.log("image", "start") { key(request) }
+                        }
+                        override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
+                            val k = key(request)
+                            val t0 = startedAt.remove(k)
+                            com.nuvio.app.core.diag.HubTrace.log("image", "success") {
+                                "src=${result.dataSource} took=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms $k"
+                            }
+                        }
+                        override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
+                            val k = key(request)
+                            val t0 = startedAt.remove(k)
+                            com.nuvio.app.core.diag.HubTrace.log("image", "ERROR") {
+                                "after=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms err=${result.throwable::class.simpleName}: ${result.throwable.message?.take(120)} $k"
+                            }
+                        }
+                        override fun onCancel(request: coil3.request.ImageRequest) {
+                            com.nuvio.app.core.diag.HubTrace.log("image", "cancel") { key(request) }
+                        }
                     }
-                }
-                override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
-                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
-                    val k = key(request)
-                    val t0 = startedAt.remove(k)
-                    com.nuvio.app.core.diag.HubTrace.log("image", "ERROR") {
-                        "after=${t0?.let { com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - it }}ms err=${result.throwable::class.simpleName}: ${result.throwable.message?.take(120)} $k"
-                    }
-                }
-                override fun onCancel(request: coil3.request.ImageRequest) {
-                    if (!com.nuvio.app.core.diag.HubTrace.enabled) return
-                    com.nuvio.app.core.diag.HubTrace.log("image", "cancel") { key(request) }
-                }
-            })
+                } else {
+                    coil3.EventListener.EMPTY
+                },
+            )
             .configurePlatformImageLoader(context)
             .build()
     }
@@ -879,7 +871,7 @@ private fun MainAppContent(
     onGoBack: (() -> Unit)? = null,
     onReplace: ((AppRoute) -> Unit)? = null,
     onActivate: ((AppScreenTab) -> Unit)? = null,
-    onTabTitles: ((home: String, search: String, library: String, iptv: String, sports: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
+    onTabTitles: ((home: String, search: String, library: String, iptv: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
     nativeProfileSwitcherController: NativeProfileSwitcherController? = null,
     onRootContentReady: ((Boolean) -> Unit)? = null,
     onSwitchProfile: () -> Unit = {},
@@ -1024,7 +1016,6 @@ private fun MainAppContent(
     val nativeTabSearchTitle = stringResource(Res.string.compose_nav_search)
     val nativeTabLibraryTitle = stringResource(Res.string.compose_nav_library)
     val nativeTabIptvTitle = "IPTV"
-    val nativeTabSportsTitle = "Sports"
     val nativeTabProfileTitle = stringResource(Res.string.compose_nav_profile)
     val nativeSwitchProfileTitle = stringResource(Res.string.compose_settings_root_switch_profile_title)
     val nativeAddProfileTitle = stringResource(Res.string.compose_profile_add_profile)
@@ -1072,7 +1063,6 @@ private fun MainAppContent(
             }
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Iptv -> iptvScrollToTopRequests.tryEmit(Unit)
-            AppScreenTab.Sports -> {}
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
         }
     }
@@ -1107,7 +1097,6 @@ private fun MainAppContent(
         nativeTabSearchTitle,
         nativeTabLibraryTitle,
         nativeTabIptvTitle,
-        nativeTabSportsTitle,
         nativeTabProfileTitle,
         nativeSwitchProfileTitle,
         nativeAddProfileTitle,
@@ -1118,7 +1107,6 @@ private fun MainAppContent(
             search = nativeTabSearchTitle,
             library = nativeTabLibraryTitle,
             iptv = nativeTabIptvTitle,
-            sports = nativeTabSportsTitle,
             profile = nativeTabProfileTitle,
         )
         onTabTitles?.invoke(
@@ -1126,7 +1114,6 @@ private fun MainAppContent(
             nativeTabSearchTitle,
             nativeTabLibraryTitle,
             nativeTabIptvTitle,
-            nativeTabSportsTitle,
             nativeTabProfileTitle,
             nativeSwitchProfileTitle,
             nativeAddProfileTitle,
@@ -1211,7 +1198,6 @@ private fun MainAppContent(
         runCatching { com.nuvio.app.core.contracts.RecTrackingAccess.reporter.startLogging() }
         NetworkStatusRepository.ensureStarted()
         EpisodeReleaseNotificationsRepository.refreshAsync()
-        kotlinx.coroutines.delay(5_000)
         initialHomeReady = true
     }
 
@@ -2166,12 +2152,6 @@ private fun MainAppContent(
                                             contentDescription = "IPTV",
                                         )
                                         NavItem(
-                                            selected = selectedTab == AppScreenTab.Sports,
-                                            onClick = { handleRootTabClick(AppScreenTab.Sports) },
-                                            icon = Res.drawable.sidebar_sports,
-                                            contentDescription = "Sports",
-                                        )
-                                        NavItem(
                                             selected = selectedTab == AppScreenTab.Settings,
                                             onClick = { handleRootTabClick(AppScreenTab.Settings) },
                                         ) {
@@ -2229,7 +2209,6 @@ private fun MainAppContent(
                                             SettingsPageRequest.request("Iptv")
                                             activateTab(AppScreenTab.Settings)
                                         },
-                                        onOpenSportsTab = { selectedTab = AppScreenTab.Sports },
                                         onPlayLiveChannel = { contentId ->
                                             val item = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(contentId)
                                             playLiveXtreamChannel(
@@ -2237,22 +2216,6 @@ private fun MainAppContent(
                                                 name = item?.name ?: "Live TV",
                                                 logo = item?.logo ?: item?.poster,
                                                 url = item?.streamUrl,
-                                            )
-                                        },
-                                        // A Sports replay is the SAME live launch plus the
-                                        // programme bounds: the Live TV screen begins the
-                                        // catch-up walk from them instead of tuning live.
-                                        onPlaySportsReplay = { replay ->
-                                            playLiveXtreamChannel(
-                                                contentId = replay.contentId,
-                                                name = replay.channelName,
-                                                logo = replay.logo,
-                                                url = com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(replay.contentId)?.streamUrl,
-                                                replay = LiveReplayLaunch(
-                                                    programmeTitle = replay.programmeTitle,
-                                                    programmeStartMs = replay.programmeStartMs,
-                                                    programmeEndMs = replay.programmeEndMs,
-                                                ),
                                             )
                                         },
                                         onIptvFavoriteChannel = { contentId ->
@@ -2456,13 +2419,6 @@ private fun MainAppContent(
                                             icon = Icons.Filled.LiveTv,
                                             contentDescription = "IPTV",
                                             label = "IPTV",
-                                        )
-                                        NavItem(
-                                            selected = selectedTab == AppScreenTab.Sports,
-                                            onClick = { handleRootTabClick(AppScreenTab.Sports) },
-                                            icon = Res.drawable.sidebar_sports,
-                                            contentDescription = "Sports",
-                                            label = "Sports",
                                         )
                                         NavItem(
                                             selected = selectedTab == AppScreenTab.Settings,
@@ -4156,9 +4112,7 @@ private fun AppTabHost(
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     onIptvAddProvider: () -> Unit = {},
     onPlayLiveChannel: (String) -> Unit = {},
-    onPlaySportsReplay: (SportsReplay) -> Unit = {},
     onIptvFavoriteChannel: (String) -> Unit = {},
-    onOpenSportsTab: () -> Unit = {},
     onLibraryPosterClick: ((LibraryItem) -> Unit)? = null,
     onLibraryPosterLongClick: ((LibraryItem, LibrarySection) -> Unit)? = null,
     onLibrarySectionViewAllClick: ((LibrarySection, LibrarySortOption) -> Unit)? = null,
@@ -4205,9 +4159,6 @@ private fun AppTabHost(
                         continueWatchingDisintegrationRequest = continueWatchingDisintegrationRequest,
                         onFolderClick = onFolderClick,
                         onFirstCatalogRendered = onInitialHomeContentRendered,
-                        onOpenSportsTab = onOpenSportsTab,
-                        onPlaySportsChannel = onPlayLiveChannel,
-                        onPlaySportsReplay = onPlaySportsReplay,
                         onAddIptvPlaylist = onIptvAddProvider,
                     )
                 }
@@ -4243,23 +4194,6 @@ private fun AppTabHost(
                         onFavoriteLiveChannel = onIptvFavoriteChannel,
                         onAddProvider = onIptvAddProvider,
                         scrollToTopRequests = iptvScrollToTopRequests,
-                    )
-                }
-
-                AppScreenTab.Sports -> {
-                    com.nuvio.app.core.contracts.SportsHubContentAccess.current()?.Render(
-                        modifier = Modifier.fillMaxSize(),
-                        // Matched channels are registry-registered live ids — same play route
-                        // as the IPTV hub; the no-playlist CTA deep-links to IPTV settings.
-                        onPlayChannel = onPlayLiveChannel,
-                        onAddPlaylist = onIptvAddProvider,
-                        // Recordings are registry-registered VOD ids — native detail pipeline.
-                        onOpenRecording = { id ->
-                            com.nuvio.app.core.contracts.LivePlaybackAccess.current().recordingPreview(id)?.let { onPosterClick?.invoke(it) }
-                        },
-                        // Replays ride the live route with the programme bounds beside the id —
-                        // the Live TV screen turns them into a catch-up session (flag + gates).
-                        onPlayReplay = onPlaySportsReplay,
                     )
                 }
 
@@ -4380,23 +4314,6 @@ private fun TabletFloatingTopBar(
                             contentDescription = "IPTV",
                             modifier = Modifier.size(NuvioTokens.Space.s18),
                             tint = if (selectedTab == AppScreenTab.Iptv) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = "Sports",
-                    selected = selectedTab == AppScreenTab.Sports,
-                    onClick = { onTabSelected(AppScreenTab.Sports) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_sports),
-                            contentDescription = "Sports",
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Sports) {
                                 tokens.colors.textPrimary
                             } else {
                                 tokens.colors.textMuted

@@ -47,7 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -116,7 +116,7 @@ fun CollectionEditorScreen(
     initializeRepository: Boolean = true,
     onNavigateToPage: ((page: CollectionEditorPage, title: String) -> Unit)? = null,
 ) {
-    val state by CollectionEditorRepository.uiState.collectAsState()
+    val state by CollectionEditorRepository.uiState.collectAsStateWithLifecycle()
     val bottomInset = nuvioSafeBottomPadding()
 
     LaunchedEffect(collectionId, initializeRepository) {
