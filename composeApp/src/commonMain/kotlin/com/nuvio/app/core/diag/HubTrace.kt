@@ -8,7 +8,7 @@ import co.touchlab.kermit.Logger
  * question — where the seconds go between a switch and a filled screen — and should be deleted
  * once that is answered.
  *
- * Everything is on ONE tag so a single `adb logcat -s TUVORA_TRACE:V` shows the whole causal
+ * Everything is on ONE tag so a single `adb logcat -s NUVIO_X_TRACE:V` shows the whole causal
  * chain, with a monotonic-ish millisecond stamp so gaps are readable at a glance.
  *
  * OFF unless [enabled] is set true by the debug entry point — a release build must never pay for
@@ -21,7 +21,7 @@ object HubTrace {
     // is a log line read microseconds after the flag flips, whose worst outcome is a missing line.
     var enabled: Boolean = false
 
-    private val log = Logger.withTag("TUVORA_TRACE")
+    private val log = Logger.withTag("NUVIO_X_TRACE")
 
     /** Set by the Android debug entry point so stamps are readable deltas rather than epoch ms. */
     private var originMs: Long = 0L

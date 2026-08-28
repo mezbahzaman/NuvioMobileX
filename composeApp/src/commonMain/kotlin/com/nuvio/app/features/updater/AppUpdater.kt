@@ -122,7 +122,7 @@ private object AppUpdaterRepository {
             url = "$gitHubApiBase/repos/$gitHubOwner/$gitHubRepo/releases?per_page=20",
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
-                "User-Agent" to "Tuvora",
+                "User-Agent" to "NuvioX",
             ),
             body = "",
         )

@@ -258,11 +258,11 @@ jobs:
               APK=$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)
             fi
             test -n "$APK" || { echo "No arm64-v8a APK was produced" >&2; exit 1; }
-            cp "$APK" "dist/Tuvora-${{ steps.ver.outputs.version }}-arm64-v8a.apk"
+            cp "$APK" "dist/NuvioX-${{ steps.ver.outputs.version }}-arm64-v8a.apk"
           else
-            cp "$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)" "dist/Tuvora-${{ steps.ver.outputs.version }}.apk"
-            cp "$(find androidApp/build/outputs/bundle/fullRelease -name '*.aab' | head -1)" "dist/Tuvora-${{ steps.ver.outputs.version }}.aab"
-            cp "$(find androidApp/build/outputs/bundle/playstoreRelease -name '*.aab' | head -1)" "dist/Tuvora-${{ steps.ver.outputs.version }}-playstore.aab"
+            cp "$(find androidApp/build/outputs -type f -name '*.apk' -print -quit)" "dist/NuvioX-${{ steps.ver.outputs.version }}.apk"
+            cp "$(find androidApp/build/outputs/bundle/fullRelease -name '*.aab' | head -1)" "dist/NuvioX-${{ steps.ver.outputs.version }}.aab"
+            cp "$(find androidApp/build/outputs/bundle/playstoreRelease -name '*.aab' | head -1)" "dist/NuvioX-${{ steps.ver.outputs.version }}-playstore.aab"
           fi
           ls -la dist
 
@@ -273,7 +273,7 @@ jobs:
           release_args=(
             "${{ steps.ver.outputs.tag }}"
             --target "${GITHUB_SHA}"
-            --title "Tuvora ${{ steps.ver.outputs.version }}"
+            --title "Nuvio X ${{ steps.ver.outputs.version }}"
             --generate-notes
           )
           if [ "${{ steps.ver.outputs.draft }}" = "true" ]; then
@@ -283,7 +283,7 @@ jobs:
             gh release upload "${{ steps.ver.outputs.tag }}" dist/* --clobber
             gh release edit "${{ steps.ver.outputs.tag }}" \
               --target "${GITHUB_SHA}" \
-              --title "Tuvora ${{ steps.ver.outputs.version }}"
+              --title "Nuvio X ${{ steps.ver.outputs.version }}"
           else
             gh release create "${release_args[@]}" dist/*
           fi
@@ -328,7 +328,7 @@ jobs:
             echo "::warning::TUVORA_RELEASE_TOKEN is not set — tuvora.co/apk will keep serving the previous build"
             exit 0
           fi
-          ASSET="Tuvora-${VERSION}.apk"
+          ASSET="NuvioX-${VERSION}.apk"
           URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ASSET}"
           curl -fsS -X POST "https://tuvora.co/api/releases" \
             -H "authorization: Bearer $RELEASE_TOKEN" \
@@ -357,7 +357,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           MSG=$(printf '%s\n' \
-            "Tuvora ${VERSION} is out! 🎉" \
+            "Nuvio X ${VERSION} is out! 🎉" \
             "" \
             "⬇️ APK: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" \
             "🏪 Play beta: join https://groups.google.com/g/tuvora-testers then https://play.google.com/apps/testing/com.tuvora.mobile" \

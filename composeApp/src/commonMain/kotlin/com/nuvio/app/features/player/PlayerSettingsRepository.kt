@@ -61,7 +61,7 @@ data class PlayerSettingsUiState(
      *
      * ExoPlayer macroblocks 4K / high-bitrate H.264 on Qualcomm hardware decoders — the "green
      * blocks on live" cohort — while libmpv decodes the same streams clean (device-confirmed on a
-     * Galaxy S24 Ultra; see research/tuvora-4k-avc-macroblocking). Defaulting to libmpv is safe
+     * Galaxy S24 Ultra; see research/nuvio-x-4k-avc-macroblocking). Defaulting to libmpv is safe
      * now that [androidLibmpvVideoOutput] defaults to `gpu` (not `gpu-next`), which sidesteps the
      * libplacebo v7.360.0 sync_file fd leak that once made a libmpv default untenable.
      *

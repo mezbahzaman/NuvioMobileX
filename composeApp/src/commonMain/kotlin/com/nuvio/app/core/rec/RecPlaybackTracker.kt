@@ -11,9 +11,9 @@ private const val MAX_TRACKED_PLAYBACKS = 64
  * NuvioTV's `RecPlaybackTracker`.
  *
  * WHY THIS MATTERS MORE THAN IMPRESSIONS: the recommender's strongest variant is trained with a
- * like/dislike signal, which MovieLens supplies as star ratings. Tuvora has no ratings — but how
+ * like/dislike signal, which MovieLens supplies as star ratings. Nuvio X has no ratings — but how
  * far someone watched is the same information. Bailing at 25% is a low rating; reaching 90% is a
- * high one. These four crossings are what let a Tuvora-trained model use the architecture's best
+ * high one. These four crossings are what let a Nuvio X-trained model use the architecture's best
  * lever at all.
  *
  * Derived, never re-measured: percentages come from the position/duration the player already

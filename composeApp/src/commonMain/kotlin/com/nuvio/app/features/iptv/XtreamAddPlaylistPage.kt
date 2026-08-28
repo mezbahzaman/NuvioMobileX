@@ -749,7 +749,7 @@ private fun SaveSection(
         }
         // Store policy: the app must state it ships no content of its own.
         Text(
-            text = "Tuvora does not provide any channels, movies, or series. All content comes from the playlist you add here, and you must have a valid subscription with that provider.",
+            text = "Nuvio X does not provide any channels, movies, or series. All content comes from the playlist you add here, and you must have a valid subscription with that provider.",
             style = MaterialTheme.typography.bodySmall,
             color = tokens.colors.textMuted,
         )

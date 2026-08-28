@@ -13,7 +13,7 @@ import com.nuvio.app.core.analytics.AnalyticsSink
  *
  * **Nothing identifying may be added to these events.** No panel URL, host, username, playlist
  * name, or channel name — telemetry has leaked a provider host and username once already
- * (`tuvora-privacy-claims`). [com.nuvio.app.core.analytics.PostHogPrivacy] strips URL-shaped and
+     * (`nuvio-x-privacy-claims`). [com.nuvio.app.core.analytics.PostHogPrivacy] strips URL-shaped and
  * credential-shaped values as a last line of defence, but it cannot recognise a hostname sitting
  * in a field called `source`, so the rule is upstream: counts, durations, and closed vocabularies
  * only. Errors report their exception CLASS, never their message, because panel error messages

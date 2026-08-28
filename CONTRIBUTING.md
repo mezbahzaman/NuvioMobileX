@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Tuvora.
+Thanks for helping improve Nuvio X.
 
 ## Strict rules - read before opening anything
 

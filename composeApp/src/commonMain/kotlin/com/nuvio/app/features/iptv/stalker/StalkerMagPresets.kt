@@ -7,7 +7,7 @@ package com.nuvio.app.features.iptv.stalker
  * device whose `stb_type` / `image_version` / `hw_version` / User-Agent look like the box they were
  * provisioned for, and answer the plain text "Authorization failed." to everything else. Sending a
  * single hardcoded identity turns those portals into a support ticket that reads "works in TiviMate,
- * not in Tuvora" — there is nothing wrong with the user's MAC.
+     * not in Nuvio X" — there is nothing wrong with the user's MAC.
  *
  * [LADDER] starts with the identity we have always sent, so a portal that already works keeps its
  * existing first-try behaviour and costs no extra requests. Only a rejection moves down the list.
@@ -25,7 +25,7 @@ internal data class StalkerMagPreset(
 
 internal object StalkerMagPresets {
 
-    /** Exactly what Tuvora sent before the ladder existed. Must stay first. */
+    /** Exactly what Nuvio X sent before the ladder existed. Must stay first. */
     val GENERIC_MAG250 = StalkerMagPreset(
         id = "generic_mag250",
         stbType = "MAG250",

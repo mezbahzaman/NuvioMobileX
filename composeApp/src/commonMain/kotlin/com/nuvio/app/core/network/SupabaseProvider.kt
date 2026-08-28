@@ -70,7 +70,7 @@ object SupabaseProvider {
         if (current != null && current.backend.hasSameConnectionIdentity(config)) return current.client
         val previous = holder
 
-        val userAgent = "Tuvora/${AppVersionConfig.VERSION_NAME.ifBlank { "dev" }}"
+        val userAgent = "NuvioX/${AppVersionConfig.VERSION_NAME.ifBlank { "dev" }}"
         val nextClient = createSupabaseClient(
             supabaseUrl = config.normalizedSupabaseUrl,
             supabaseKey = config.anonKey,

@@ -14,10 +14,8 @@ internal fun AppBrandWordmark(
     contentDescription: String? = null,
     icon: AppIconOption? = null,
 ) {
-    // Tuvora pins the brand wordmark to a single Tuvora asset across every theme/icon. Upstream
-    // selects a per-theme Nuvio wordmark here; the fork renders only the Tuvora wordmark so no Nuvio
-    // branding ever appears (the cosmetic theme/icon system still works everywhere else). This stays
-    // the one brand chokepoint — every caller (login, splash, member badge) shows Tuvora.
+    // Nuvio X pins the brand wordmark to a single asset across every theme/icon. This stays
+    // the one brand chokepoint — every caller (login, splash, member badge) shows Nuvio X.
     Image(
         painter = painterResource(Res.drawable.app_logo_wordmark),
         contentDescription = contentDescription,

@@ -90,7 +90,7 @@ internal object TorboxApiClient {
     }
 
     suspend fun createTorrent(apiKey: String, magnet: String): DebridApiResponse<TorboxEnvelopeDto<TorboxCreateTorrentDataDto>> {
-        val boundary = "TuvoraDebrid${magnet.hashCode().toUInt()}"
+        val boundary = "NuvioXDebrid${magnet.hashCode().toUInt()}"
         val body = multipartFormBody(
             boundary = boundary,
             "magnet" to magnet,

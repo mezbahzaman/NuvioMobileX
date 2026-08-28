@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
  * Android defaults to the libmpv engine, not Auto (which starts on ExoPlayer).
  *
  * ExoPlayer macroblocks 4K / high-bitrate H.264 on Qualcomm hardware decoders while libmpv decodes
- * the same streams clean (device-confirmed; see research/tuvora-4k-avc-macroblocking). The pre-change
+     * the same streams clean (device-confirmed; see research/nuvio-x-4k-avc-macroblocking). The pre-change
  * default was [AndroidPlaybackEngine.Auto]; asserting [AndroidPlaybackEngine.Libmpv] here is what
  * stops the default silently regressing to ExoPlayer.
  *

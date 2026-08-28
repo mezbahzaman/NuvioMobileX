@@ -176,7 +176,7 @@ class AppExitReporterTest {
 
     @Test
     fun `process stat parser handles names containing spaces and parentheses`() {
-        val stat = "123 (Tuvora worker (1)) S 1 2 3 4 5 6 7 8 9 10 120 30 0 0"
+        val stat = "123 (Nuvio X worker (1)) S 1 2 3 4 5 6 7 8 9 10 120 30 0 0"
 
         assertEquals(150L, parseProcessCpuTicks(stat))
         assertNull(parseProcessCpuTicks("malformed"))

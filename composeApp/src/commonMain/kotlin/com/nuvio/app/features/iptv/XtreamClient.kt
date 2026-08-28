@@ -380,7 +380,7 @@ object XtreamClient : IptvClient {
     /**
      * Every catch-up URL worth trying for this channel, best-known first — panels disagree about
      * the shape and none advertise which they speak, so the caller walks the list until one plays
-     * (CatchUpDialectWalk owns the walking policy). The first entry is the form Tuvora has always
+     * (CatchUpDialectWalk owns the walking policy). The first entry is the form Nuvio X has always
      * sent; the date maths and dialects live in [XtreamCatchUp] (KMP twin of NuvioTV's).
      */
     fun liveTimeshiftUrls(

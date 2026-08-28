@@ -21,7 +21,7 @@ object XtreamCatchUp {
      * here with the Hinnant civil-from-days algorithm — no SimpleDateFormat, no TimeZone.
      *
      * The fallback is UTC rather than the device's local time. Most panels never report a usable
-     * zone, and UTC is what Tuvora has always sent — moving the default would silently shift
+     * zone, and UTC is what Nuvio X has always sent — moving the default would silently shift
      * replay for every provider that works today.
      */
     fun formatStart(startMs: Long, serverOffsetMs: Long? = null): String {
@@ -122,7 +122,7 @@ object XtreamCatchUp {
      * Every catch-up URL worth trying, best-known first.
      *
      * Panels do not agree on the shape and none of them advertise which they speak, so the caller
-     * walks this list until one plays. The first entry is the XUI path form Tuvora already shipped
+     * walks this list until one plays. The first entry is the XUI path form Nuvio X already shipped
      * and must stay exactly that, or panels that work today would regress.
      */
     fun candidateUrls(

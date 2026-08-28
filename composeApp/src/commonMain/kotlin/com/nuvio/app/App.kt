@@ -2220,7 +2220,7 @@ private fun MainAppContent(
                                         },
                                         onIptvFavoriteChannel = { contentId ->
                                             com.nuvio.app.core.contracts.LivePlaybackAccess.current().channelInfoFor(contentId)?.let { item ->
-                                                // Live favorites belong to Tuvora's own synced library even
+                                                // Live favorites belong to Nuvio X's own synced library even
                                                 // when Movies/Series are currently sourced from Trakt or Simkl.
                                                 LibraryRepository.toggleLocalSaved(
                                                     LibraryItem(

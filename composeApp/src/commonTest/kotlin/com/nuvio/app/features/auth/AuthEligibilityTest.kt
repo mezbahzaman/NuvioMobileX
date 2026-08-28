@@ -42,7 +42,7 @@ class AuthEligibilityTest {
     }
 
     @Test
-    fun termsUrlUsesCurrentTuvoraDomain() {
+    fun termsUrlUsesCurrentNuvioXDomain() {
         assertEquals("https://tuvora.co/terms", TUVORA_TERMS_URL)
     }
 }

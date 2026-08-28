@@ -8,7 +8,7 @@ import kotlin.test.Test
 class StalkerMagPresetsTest {
 
     /**
-     * The identity Tuvora shipped before the ladder existed has to stay first, or every portal that
+     * The identity Nuvio X shipped before the ladder existed has to stay first, or every portal that
      * already works pays an extra rejected round-trip on its next login.
      */
     @Test

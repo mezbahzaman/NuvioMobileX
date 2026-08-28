@@ -118,7 +118,7 @@ object CatchUpPlayback {
      * Whether a Stalker portal answered `{error: 'limit'}` — the account's concurrent-session cap,
      * not a fault in the app or the recording. It deserves its own message: retrying cannot help,
      * closing another device can, and a generic playback error sends people to Discord blaming
-     * Tuvora for their subscription's connection limit.
+     * Nuvio X for their subscription's connection limit.
      *
      * Matched as the error FIELD, never the bare word: channel and programme names contain
      * anything at all.

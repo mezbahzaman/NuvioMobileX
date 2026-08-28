@@ -54,7 +54,7 @@ object LibraryRepository {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
-    // IPTV live favorites are always stored in Tuvora's local/synced library, even when the
+    // IPTV live favorites are always stored in Nuvio X's local/synced library, even when the
     // visible Movies/Series library is sourced from Trakt or Simkl.
     private val _localItems = MutableStateFlow<List<LibraryItem>>(emptyList())
     val localItems: StateFlow<List<LibraryItem>> = _localItems.asStateFlow()
@@ -720,7 +720,7 @@ object LibraryRepository {
 }
 
 internal const val LOCAL_LIBRARY_LIST_KEY = "local"
-private const val DEFAULT_LOCAL_LIBRARY_TAB_TITLE = "Tuvora Library"
+private const val DEFAULT_LOCAL_LIBRARY_TAB_TITLE = "Nuvio X Library"
 private const val DEFAULT_LIBRARY_OTHER_TITLE = "Other"
 
 internal fun localLibraryListTab(): TrackingLibraryTab =

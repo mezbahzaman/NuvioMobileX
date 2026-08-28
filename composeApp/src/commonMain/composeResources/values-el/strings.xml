@@ -32,7 +32,7 @@
     <string name="addons_configure">Διαμόρφωση πρόσθετου</string>
     <string name="addons_delete">Διαγραφή πρόσθετου</string>
     <string name="addons_delete_confirm_title">Διαγραφή πρόσθετου;</string>
-    <string name="addons_empty_subtitle">Προσθέστε μια διεύθυνση URL manifest για να ξεκινήσετε τη φόρτωση καταλόγων, μεταδεδομένων, ροών ή υποτίτλων στο Tuvora.</string>
+    <string name="addons_empty_subtitle">Προσθέστε μια διεύθυνση URL manifest για να ξεκινήσετε τη φόρτωση καταλόγων, μεταδεδομένων, ροών ή υποτίτλων στο Nuvio X.</string>
     <string name="addons_empty_title">Δεν έχουν εγκατασταθεί πρόσθετα ακόμα.</string>
     <string name="addons_error_enter_url">Εισάγετε μια διεύθυνση URL πρόσθετου.</string>
     <string name="addons_input_placeholder">URL πρόσθετου</string>
@@ -282,7 +282,7 @@
     <string name="compose_settings_root_check_updates_description">Ελέγξτε για νέες εκδόσεις της εφαρμογής.</string>
     <string name="compose_settings_root_check_updates_title">Έλεγχος για ενημερώσεις</string>
     <string name="compose_settings_root_content_discovery_description">Διαχείριση πρόσθετων και πηγών ανακάλυψης.</string>
-    <string name="compose_settings_root_content_discovery_description_appstore">Διαχειριστείτε τα πρόσθετα και επιλέξτε τι εμφανίζεται στο Tuvora.</string>
+    <string name="compose_settings_root_content_discovery_description_appstore">Διαχειριστείτε τα πρόσθετα και επιλέξτε τι εμφανίζεται στο Nuvio X.</string>
     <string name="compose_settings_root_downloads_description">Διαχειριστείτε τις κατεβασμένες ταινίες και επεισόδιά σας.</string>
     <string name="compose_settings_root_downloads_description_appstore">Διαχειριστείτε όσα έχετε αποθηκεύσει σε αυτή τη συσκευή.</string>
     <string name="compose_settings_root_downloads_title">Λήψεις</string>
@@ -299,7 +299,7 @@
     <string name="compose_tracking_list_picker_loading">Φόρτωση λιστών…</string>
     <string name="compose_tracking_list_picker_subtitle">Επιλέξτε πού θα αποθηκευτεί αυτός ο τίτλος</string>
     <string name="action_donate">Δωρεά</string>
-    <string name="action_support_nuvio">Υποστηρίξτε το Tuvora</string>
+    <string name="action_support_nuvio">Υποστηρίξτε το Nuvio X</string>
     <string name="cw_action_go_to_details">Μετάβαση στις λεπτομέρειες</string>
     <string name="cw_action_remove">Αφαίρεση</string>
     <string name="cw_action_start_from_beginning">Έναρξη από την αρχή</string>
@@ -542,10 +542,10 @@
     <string name="settings_meta_tab_layout_description">Ομαδοποίηση ενοτήτων σε καρτέλες όπως η εφαρμογή TV. Αντιστοιχίστε έως 3 ενότητες ανά ομάδα καρτελών.</string>
     <string name="settings_meta_trailers">Τρέιλερ</string>
     <string name="settings_meta_trailers_description">Ράγα τρέιλερ και συντομεύσεις αναπαραγωγής.</string>
-    <string name="settings_notifications_disabled_in_app">Οι ειδοποιήσεις είναι απενεργοποιημένες αυτή τη στιγμή στο Tuvora.</string>
+    <string name="settings_notifications_disabled_in_app">Οι ειδοποιήσεις είναι απενεργοποιημένες αυτή τη στιγμή στο Nuvio X.</string>
     <string name="settings_notifications_episode_release_alerts">Ειδοποιήσεις κυκλοφορίας επεισοδίων</string>
     <string name="settings_notifications_episode_release_alerts_description">Προγραμματισμός τοπικών ειδοποιήσεων όταν ένα νέο επεισόδιο αποθηκευμένης σειράς γίνει διαθέσιμο.</string>
-    <string name="settings_notifications_permission_disabled">Οι ειδοποιήσεις συστήματος είναι απενεργοποιημένες για το Tuvora. Ενεργοποιήστε τες για να λαμβάνετε ειδοποιήσεις και δοκιμαστικές ειδοποιήσεις.</string>
+    <string name="settings_notifications_permission_disabled">Οι ειδοποιήσεις συστήματος είναι απενεργοποιημένες για το Nuvio X. Ενεργοποιήστε τες για να λαμβάνετε ειδοποιήσεις και δοκιμαστικές ειδοποιήσεις.</string>
     <string name="settings_notifications_scheduled_count">%1$d ειδοποιήσεις κυκλοφορίας είναι προγραμματισμένες αυτήν τη στιγμή σε αυτήν τη συσκευή.</string>
     <string name="settings_notifications_section_alerts">ΕΙΔΟΠΟΙΗΣΕΙΣ</string>
     <string name="settings_notifications_section_test">ΔΟΚΙΜΗ</string>
@@ -555,15 +555,15 @@
     <string name="settings_notifications_test_requires_saved_show">Αποθηκεύστε πρώτα μια σειρά στη βιβλιοθήκη σας για να δοκιμάσετε τις ειδοποιήσεις.</string>
     <string name="settings_notifications_test_title">Δοκιμαστική ειδοποίηση</string>
     <string name="community_section_title">Κοινότητα</string>
-    <string name="community_section_description">Δείτε τους ανθρώπους που κατασκευάζουν και υποστηρίζουν το Tuvora σε Mobile, TV και Web.</string>
-    <string name="community_membership_title">Συνδρομή υποστηρικτή Tuvora</string>
-    <string name="community_membership_description">Η υποστήριξη του Tuvora βοηθά στην κάλυψη της υποδομής και της συνεχούς ανάπτυξης, διατηρώντας παράλληλα τη βασική εμπειρία δωρεάν για όλους.</string>
+    <string name="community_section_description">Δείτε τους ανθρώπους που κατασκευάζουν και υποστηρίζουν το Nuvio X σε Mobile, TV και Web.</string>
+    <string name="community_membership_title">Συνδρομή υποστηρικτή Nuvio X</string>
+    <string name="community_membership_description">Η υποστήριξη του Nuvio X βοηθά στην κάλυψη της υποδομής και της συνεχούς ανάπτυξης, διατηρώντας παράλληλα τη βασική εμπειρία δωρεάν για όλους.</string>
     <string name="community_view_supporter_membership">Προβολή συνδρομής υποστηρικτή</string>
     <string name="community_membership_you_are">Είστε</string>
     <string name="community_membership_thank_you">Σας ευχαριστούμε.</string>
     <string name="community_membership_supporter_since">Υποστηρικτής από %1$s.</string>
     <string name="community_membership_connected_title">Το Patreon είναι συνδεδεμένο</string>
-    <string name="community_membership_connected_description">Δεν βρέθηκε ενεργή βαθμίδα Tuvora σε αυτόν τον λογαριασμό Patreon. Δείτε τις διαθέσιμες επιλογές ή ανανεώστε αφού αλλάξετε τη συνδρομή σας στο Patreon.</string>
+    <string name="community_membership_connected_description">Δεν βρέθηκε ενεργή βαθμίδα Nuvio X σε αυτόν τον λογαριασμό Patreon. Δείτε τις διαθέσιμες επιλογές ή ανανεώστε αφού αλλάξετε τη συνδρομή σας στο Patreon.</string>
     <string name="community_membership_manage">Διαχείριση συνδρομής</string>
     <string name="community_membership_refresh">Ανανέωση</string>
     <string name="community_membership_refreshing">Γίνεται ανανέωση</string>
@@ -953,7 +953,7 @@
     <string name="details_series_missing_numbers">Αυτό το πρόσθετο επέστρεψε βίντεο για τη σειρά, αλλά κανένα δεν περιελάμβανε αριθμούς σεζόν ή επεισοδίου.</string>
     <string name="details_series_no_metadata">Αυτό το πρόσθετο δεν παρείχε μεταδεδομένα επεισοδίων για αυτή τη σειρά.</string>
     <string name="details_series_unpublished">Τα επεισόδια δεν έχουν δημοσιευτεί ακόμα από αυτό το πρόσθετο.</string>
-    <string name="details_servers_unreachable">Η συσκευή σας είναι συνδεδεμένη στο διαδίκτυο, αλλά το Tuvora δεν μπόρεσε να φτάσει τους απαιτούμενους διακομιστές.</string>
+    <string name="details_servers_unreachable">Η συσκευή σας είναι συνδεδεμένη στο διαδίκτυο, αλλά το Nuvio X δεν μπόρεσε να φτάσει τους απαιτούμενους διακομιστές.</string>
     <string name="details_show_less">Εμφάνιση λιγότερων</string>
     <string name="details_show_more">Εμφάνιση περισσότερων ▾</string>
     <string name="details_writer">Σεναριογράφος</string>
@@ -1021,7 +1021,7 @@
     <string name="profile_avatar_options_pending">Οι επιλογές avatar θα εμφανιστούν εδώ όταν φορτωθεί ο κατάλογος.</string>
     <string name="profile_avatar_selected">Avatar: %1$s</string>
     <string name="profile_background_custom">Προσαρμοσμένο</string>
-    <string name="profile_background_member_note">Τα προσαρμοσμένα URL φόντου μπορούν να ρυθμιστούν από το web panel του Tuvora.</string>
+    <string name="profile_background_member_note">Τα προσαρμοσμένα URL φόντου μπορούν να ρυθμιστούν από το web panel του Nuvio X.</string>
     <string name="profile_background_normal">Κανονικό</string>
     <string name="profile_choose_background">Επιλογή φόντου προφίλ</string>
     <string name="profile_choose_avatar">Επιλέξτε avatar</string>
@@ -1097,7 +1097,7 @@
     <string name="updates_debug_test_title">Δοκιμή banner ενημέρωσης</string>
     <string name="updates_install_failed">Αδυναμία εκκίνησης εγκατάστασης</string>
     <string name="updates_latest_version">Χρησιμοποιείτε την τελευταία έκδοση.</string>
-    <string name="updates_message_allow_installs">Ενεργοποιήστε τις εγκαταστάσεις εφαρμογών για το Tuvora και επιστρέψτε για να συνεχίσετε.</string>
+    <string name="updates_message_allow_installs">Ενεργοποιήστε τις εγκαταστάσεις εφαρμογών για το Nuvio X και επιστρέψτε για να συνεχίσετε.</string>
     <string name="updates_message_downloading">Εγκατάσταση ενημέρωσης...</string>
     <string name="updates_message_no_updates">Δεν βρέθηκαν ενημερώσεις.</string>
     <string name="updates_message_ready">Μια νέα έκδοση είναι έτοιμη για εγκατάσταση.</string>
@@ -1111,7 +1111,7 @@
     <string name="addon_already_installed">Αυτό το πρόσθετο είναι ήδη εγκατεστημένο.</string>
     <string name="addon_invalid_url">Εισάγετε μια έγκυρη διεύθυνση URL πρόσθετου</string>
     <string name="addon_load_manifest_failed">Αδυναμία φόρτωσης manifest</string>
-    <string name="app_brand_name">Tuvora</string>
+    <string name="app_brand_name">Nuvio X</string>
     <string name="auth_account_deletion_failed">Η διαγραφή λογαριασμού απέτυχε</string>
     <string name="auth_sign_in_failed">Η σύνδεση απέτυχε</string>
     <string name="auth_sign_out_failed">Η αποσύνδεση απέτυχε</string>
@@ -1295,9 +1295,9 @@
     <string name="action_saving">Αποθήκευση…</string>
     <string name="action_switch">Εναλλαγή</string>
     <string name="action_validate">Επικύρωση</string>
-    <string name="addons_appstore_add_description">Φέρτε τη βιβλιοθήκη σας στο Tuvora με τα πρόσθετα που χρησιμοποιείτε.</string>
+    <string name="addons_appstore_add_description">Φέρτε τη βιβλιοθήκη σας στο Nuvio X με τα πρόσθετα που χρησιμοποιείτε.</string>
     <string name="addons_appstore_empty_subtitle">Προσθέστε ένα πρόσθετο για να αρχίσετε να δημιουργείτε τη βιβλιοθήκη σας.</string>
-    <string name="addons_appstore_empty_title">Κάντε το Tuvora δικό σας.</string>
+    <string name="addons_appstore_empty_title">Κάντε το Nuvio X δικό σας.</string>
     <string name="addons_appstore_input_placeholder">URL πρόσθετου</string>
     <string name="addons_appstore_install_button">Προσθήκη πρόσθετου</string>
     <string name="store_empty_unavailable_title">Δεν υπάρχει τίποτα εδώ ακόμη</string>
