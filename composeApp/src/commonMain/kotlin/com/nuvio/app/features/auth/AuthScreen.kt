@@ -125,7 +125,7 @@ private val AuthDividerColor = Color.White.copy(alpha = 0.10f)
 private val AuthSecondaryButtonBackground = Color.White.copy(alpha = 0.05f)
 private val AuthSecondaryButtonBorder = Color.White.copy(alpha = 0.09f)
 
-internal const val TUVORA_TERMS_URL = "https://tuvora.co/terms"
+internal const val NUVIOX_TERMS_URL = "https://tuvora.co/terms"
 
 internal fun canSubmitAuth(
     isSignUp: Boolean,
@@ -758,7 +758,7 @@ private fun AuthForm(
                 checked = signUpEligibilityConfirmed,
                 scale = scale,
                 onCheckedChange = onSignUpEligibilityChange,
-                onTermsClick = { uriHandler.openUri(TUVORA_TERMS_URL) },
+                onTermsClick = { uriHandler.openUri(NUVIOX_TERMS_URL) },
             )
         }
 

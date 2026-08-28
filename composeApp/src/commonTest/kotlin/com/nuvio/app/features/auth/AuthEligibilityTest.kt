@@ -43,6 +43,6 @@ class AuthEligibilityTest {
 
     @Test
     fun termsUrlUsesCurrentNuvioXDomain() {
-        assertEquals("https://tuvora.co/terms", TUVORA_TERMS_URL)
+        assertEquals("https://tuvora.co/terms", NUVIOX_TERMS_URL)
     }
 }

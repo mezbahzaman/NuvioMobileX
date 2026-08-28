@@ -54,8 +54,7 @@ body:
     attributes:
       label: Install method
       options:
-        - GitHub Release / App Store / Play Store
-        - TestFlight
+        - GitHub Release / Play Store
         - CI build / Nightly
         - Built from source
         - Other (please describe below)
@@ -68,13 +67,7 @@ body:
       label: Platform
       options:
         - Android (phone/tablet)
-        - iOS (iPhone)
-        - iOS (iPad)
-        - macOS (desktop)
-        - Windows (desktop)
-        - Linux (desktop)
         - Android emulator
-        - iOS simulator
         - Other (please describe below)
     validations:
       required: true
@@ -83,8 +76,8 @@ body:
     id: device_model
     attributes:
       label: Device model
-      description: "Example: iPhone 15 Pro, Pixel 8, MacBook Air M2, etc."
-      placeholder: "e.g. iPhone 15 Pro"
+      description: "Example: Pixel 8, Samsung Galaxy S24, etc."
+      placeholder: "e.g. Pixel 8"
     validations:
       required: true
 
@@ -92,7 +85,7 @@ body:
     id: os_version
     attributes:
       label: OS version
-      placeholder: "e.g. iOS 18.1, Android 14, macOS 15.2"
+      placeholder: "e.g. Android 14, Android 15"
     validations:
       required: true
 
@@ -118,7 +111,7 @@ body:
         - Settings
         - Sync (Trakt / remote)
         - Downloads / Offline
-        - Platform-specific (iOS only / Android only / Desktop only)
+        - Platform-specific (Android only)
         - Other
     validations:
       required: true
@@ -218,8 +211,6 @@ body:
         For other bug reports, logs are optional but still helpful.
 
         **Android:** `adb logcat -d | tail -n 300`
-        **iOS:** Crash log from Xcode Organizer or Console.app
-        **Desktop:** Terminal/console output from around the time the issue occurred
       render: shell
       placeholder: |
         Paste logs here

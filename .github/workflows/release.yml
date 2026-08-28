@@ -67,7 +67,7 @@ jobs:
             V="${GITHUB_REF_NAME#v}"
             DRAFT="false"
           fi
-          BASE_VERSION_CODE=$(awk -F= '$1 == "CURRENT_PROJECT_VERSION" { gsub(/[[:space:]]/, "", $2); print $2; exit }' iosApp/Configuration/Version.xcconfig)
+          BASE_VERSION_CODE=$(awk -F= '$1 == "CURRENT_PROJECT_VERSION" { gsub(/[[:space:]]/, "", $2); print $2; exit }' version.properties)
           case "$BASE_VERSION_CODE" in
             ''|*[!0-9]*) echo "Invalid CURRENT_PROJECT_VERSION: $BASE_VERSION_CODE" >&2; exit 1 ;;
           esac
@@ -225,7 +225,7 @@ jobs:
           "$ZIPALIGN" -c 4 "$APK"
           BADGING=$("$AAPT2" dump badging "$APK")
           case "$BADGING" in
-            *"package: name='com.tuvora.mobile'"*) ;;
+            *"package: name='com.nuviox.mobile'"*) ;;
             *) echo "Unexpected package in APK" >&2; exit 1 ;;
           esac
           case "$BADGING" in
@@ -297,7 +297,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.tuvora.mobile
+          packageName: com.nuviox.mobile
           releaseFiles: androidApp/build/outputs/bundle/playstoreRelease/*.aab
           # Tag push -> internal AND alpha, in one edit.
           #
@@ -360,7 +360,7 @@ jobs:
             "Nuvio X ${VERSION} is out! 🎉" \
             "" \
             "⬇️ APK: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" \
-            "🏪 Play beta: join https://groups.google.com/g/tuvora-testers then https://play.google.com/apps/testing/com.tuvora.mobile" \
+            "🏪 Play beta: join https://groups.google.com/g/tuvora-testers then https://play.google.com/apps/testing/com.nuviox.mobile" \
             "📖 Guides: https://tuvora.co/guides")
           if [ -n "$DISCORD_WEBHOOK_URL" ]; then
             jq -n --arg c "$MSG" '{content: $c}' | \

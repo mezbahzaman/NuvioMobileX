@@ -11,20 +11,20 @@
   [![License][license-shield]][license-url]
 
   <p>
-    A modern media hub for Android and iOS built with Kotlin Multiplatform and Compose Multiplatform.
+    A modern media hub for Android built with Kotlin Multiplatform and Compose Multiplatform.
     <br />
-    Stremio addon ecosystem • Cross-platform
+    Stremio addon ecosystem
   </p>
 
 </div>
 
 ## About
 
-Nuvio X is the current Kotlin Multiplatform rewrite of the original React Native app. It delivers a shared Compose UI for Android and iOS while keeping the playback-focused experience, collection tools, watch progress flows, downloads, and Stremio addon ecosystem integration that shaped the earlier app.
+Nuvio X is the current Kotlin Multiplatform rewrite of the original React Native app. It delivers a Compose UI for Android while keeping the playback-focused experience, collection tools, watch progress flows, downloads, and Stremio addon ecosystem integration that shaped the earlier app.
 
 Nuvio X is built on Nuvio by NuvioMedia.
 
-The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
+The mobile app is built from a single codebase in [composeApp](./composeApp), with a native Android entry point.
 
 ## Installation
 
@@ -32,18 +32,12 @@ The mobile app is built from a single shared codebase in [composeApp](./composeA
 
 Download the latest Android build from [GitHub Releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
 
-### iOS
-
-- [TestFlight](https://testflight.apple.com/join/u4y7MHK9)
-
 ## Development
 
 ```bash
 git clone https://github.com/NuvioMedia/NuvioMobile.git
 cd NuvioMobile
 ./scripts/run-mobile.sh android
-# or
-./scripts/run-mobile.sh ios
 ```
 
 ### Project Structure
@@ -51,18 +45,15 @@ cd NuvioMobile
 - `composeApp/` contains the shared Kotlin Multiplatform and Compose Multiplatform app code.
 - `composeApp/src/commonMain/` contains shared UI, features, repositories, and platform-agnostic logic.
 - `composeApp/src/androidMain/` contains Android-specific integrations.
-- `composeApp/src/iosMain/` contains iOS-specific integrations.
-- `iosApp/` contains the native Xcode project and iOS entry point.
 
 Useful commands:
 
 ```bash
 ./gradlew :composeApp:assembleDebug
-./gradlew :composeApp:compileKotlinIosSimulatorArm64
 ./scripts/build-distribution.sh
 ```
 
-Versioning is driven from `iosApp/Configuration/Version.xcconfig`, which is used as the shared source of truth for both iOS and Android builds.
+Versioning is driven from `version.properties`, which is the source of truth for version numbers.
 
 ## Legal & DMCA
 
@@ -78,7 +69,6 @@ For comprehensive legal information, including our full disclaimer, third-party 
 - Compose Multiplatform
 - Kotlin
 - AndroidX Media3
-- AVFoundation and native iOS integrations
 
 ## Star History
 

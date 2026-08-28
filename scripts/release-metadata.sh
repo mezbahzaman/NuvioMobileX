@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-version_file="${VERSION_FILE:-iosApp/Configuration/Version.xcconfig}"
+version_file="${VERSION_FILE:-version.properties}"
 target_ref="${1:-HEAD}"
 
 if ! git cat-file -e "${target_ref}^{commit}" 2>/dev/null; then

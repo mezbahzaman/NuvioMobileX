@@ -117,7 +117,7 @@ class AppExitReporterTest {
     fun `anr excerpt keeps the main thread stack behind a long GC preamble`() {
         val trace = buildString {
             appendLine("----- pid 493 at 2026-08-08 16:22:54 -----")
-            appendLine("Cmd line: com.tuvora.mobile")
+            appendLine("Cmd line: com.nuviox.mobile")
             appendLine("Heap: 19% free, 33MB/41MB; 757361 objects")
             appendLine("Libraries: libmpv.so libplayer.so")
             appendLine("Dumping cumulative Gc timings")
@@ -187,13 +187,13 @@ class AppExitReporterTest {
         val processes = listOf(
             ProcessCpuSample(
                 pid = 12,
-                name = safeProcessName("com.tuvora.mobile", "com.tuvora.mobile"),
+                name = safeProcessName("com.nuviox.mobile", "com.nuviox.mobile"),
                 importance = ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED,
                 cpuTicks = 100,
             ),
             ProcessCpuSample(
                 pid = 13,
-                name = safeProcessName("com.tuvora.mobile", "com.tuvora.mobile:player"),
+                name = safeProcessName("com.nuviox.mobile", "com.nuviox.mobile:player"),
                 importance = ActivityManager.RunningAppProcessInfo.IMPORTANCE_SERVICE,
                 cpuTicks = 200,
             ),

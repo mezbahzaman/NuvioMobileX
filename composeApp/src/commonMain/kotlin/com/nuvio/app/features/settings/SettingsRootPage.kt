@@ -1,12 +1,9 @@
 package com.nuvio.app.features.settings
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.ui.layout.ContentScale
-import org.jetbrains.compose.resources.painterResource
 import androidx.compose.material.icons.Icons
 import com.nuvio.app.core.build.AppFeaturePolicy
 import androidx.compose.material.icons.filled.Sync
@@ -30,10 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.Alignment
 import com.nuvio.app.core.build.AppVersionConfig
 import nuvio.composeapp.generated.resources.Res
-import nuvio.composeapp.generated.resources.app_logo_wordmark
 import nuvio.composeapp.generated.resources.compose_about_made_with
 import nuvio.composeapp.generated.resources.compose_about_version_format
 import nuvio.composeapp.generated.resources.compose_settings_page_account
@@ -304,19 +299,6 @@ internal fun LazyListScope.settingsRootContent(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = if (isTablet) 20.dp else 16.dp),
         ) {
-            if (showAboutSection) {
-                Image(
-                    painter = painterResource(Res.drawable.app_logo_wordmark),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .height(if (isTablet) 30.dp else 26.dp)
-                        .align(Alignment.CenterHorizontally),
-                )
-                androidx.compose.foundation.layout.Spacer(
-                    modifier = Modifier.height(if (isTablet) 10.dp else 8.dp),
-                )
-            }
             Text(
                 text = stringResource(Res.string.compose_about_made_with),
                 modifier = Modifier.fillMaxWidth(),

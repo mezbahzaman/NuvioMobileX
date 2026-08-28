@@ -25,7 +25,7 @@ not a code-review maybe.** Phase 0 (this commit) lands the machinery; seams S1â€
 - [ ] Firewall crossings go through an extension point, not a direct reference. *(Konsist)*
 - [ ] Screens stay previewable via `PreviewFeatureWiring`.
 - [ ] Arch test green; `ArchBaseline` shrank or held (never grew).
-- [ ] Tests red-first, green on BOTH runners (`testAndroidHostTest` + `iosSimulatorArm64Test`).
+- [ ] Tests red-first, green on BOTH runners (`testAndroidHostTest`).
 
 ## The firewall (merge safety)
 The fork side is defined by **upstream absence** (`git cat-file -e origin/cmp-rewrite:<path>`), NOT

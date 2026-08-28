@@ -40,7 +40,7 @@ val sentryAuthToken = envOrLocalProperty("SENTRY_AUTH_TOKEN")
 val sentryOrg = envOrLocalProperty("SENTRY_ORG")
 val sentryProject = envOrLocalProperty("SENTRY_PROJECT")
 val sentryMappingUploadEnabled = sentryAuthToken != null && sentryOrg != null && sentryProject != null
-val appVersionConfigFile = rootProject.file("iosApp/Configuration/Version.xcconfig")
+val appVersionConfigFile = rootProject.file("version.properties")
 val releaseAppVersionName = providers.gradleProperty("versionNameOverride").orNull?.takeIf { it.isNotBlank() }
     ?: readXcconfigValue(appVersionConfigFile, "MARKETING_VERSION")
     ?: error("MARKETING_VERSION is missing from ${appVersionConfigFile.path}")
@@ -72,7 +72,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tuvora.mobile"
+        applicationId = "com.nuviox.mobile"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = releaseAppVersionCode
@@ -143,7 +143,7 @@ android {
 
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
-        variant.applicationId.set("com.nuviodebug.com")
+        variant.applicationId.set("com.nuviox.mobile.debug")
     }
 }
 

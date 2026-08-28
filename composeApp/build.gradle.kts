@@ -273,7 +273,7 @@ val supabaseProps = Properties().apply {
     val propsFile = rootProject.file("local.properties")
     if (propsFile.exists()) propsFile.inputStream().use { load(it) }
 }
-val appVersionConfigFile = rootProject.file("iosApp/Configuration/Version.xcconfig")
+val appVersionConfigFile = rootProject.file("version.properties")
 // -PversionNameOverride / -PversionCodeOverride (from the release pipeline / git tag) win over the
 // xcconfig, so AppVersionConfig.VERSION_NAME matches the released tag — the in-app updater compares
 // against THIS constant, not the Android manifest versionName.
@@ -283,22 +283,6 @@ val releaseAppVersionName = providers.gradleProperty("versionNameOverride").orNu
 val releaseAppVersionCode = providers.gradleProperty("versionCodeOverride").orNull?.toIntOrNull()
     ?: readXcconfigValue(appVersionConfigFile, "CURRENT_PROJECT_VERSION")?.toIntOrNull()
     ?: error("CURRENT_PROJECT_VERSION is missing or invalid in ${appVersionConfigFile.path}")
-val iosDistribution = (
-    providers.gradleProperty("nuvio.ios.distribution").orNull
-        ?: System.getenv("NUVIO_IOS_DISTRIBUTION")
-        ?: supabaseProps.getProperty("NUVIO_IOS_DISTRIBUTION")
-        ?: "appstore"
-    ).trim().lowercase()
-require(iosDistribution == "appstore" || iosDistribution == "full") {
-    "NUVIO_IOS_DISTRIBUTION must be 'appstore' or 'full'."
-}
-val iosDistributionSourceDir = if (iosDistribution == "full") {
-    "src/iosFull/kotlin"
-} else {
-    "src/iosAppStore/kotlin"
-}
-val iosFrameworkBundleId = "com.nuvio.media"
-val nuvioEngineAppleFramework = rootProject.file("../nuvio-engine/platform/apple/NuvioEngine.xcframework")
 val fullCommonSourceDir = project.file("src/fullCommonMain/kotlin")
 val generatedRuntimeConfigDir = layout.buildDirectory.dir("generated/runtime-config/kotlin")
 val requestedGradleTasks = gradle.startParameter.taskNames.map { taskName ->
@@ -425,7 +409,7 @@ kotlin {
         }
         minSdk = libs.versions.android.minSdk.get().toInt()
         androidResources.enable = true
-        // JVM-side run of commonTest (fast local + ubuntu CI; the iOS twin is iosSimulatorArm64Test)
+        // JVM-side run of commonTest (fast local + ubuntu CI)
         withHostTest {}
 
         compilerOptions {
@@ -433,75 +417,7 @@ kotlin {
         }
     }
     
-    val iosTargets = listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    )
 
-    iosTargets.forEach { iosTarget ->
-        val nuvioEngineSlice = if (iosTarget.name == "iosArm64") {
-            "ios-arm64"
-        } else {
-            "ios-arm64_x86_64-simulator"
-        }
-        val nuvioEngineSliceDirectory = nuvioEngineAppleFramework.resolve(nuvioEngineSlice)
-        iosTarget.compilations.getByName("main") {
-            cinterops {
-                create("commoncrypto") {
-                    defFile(project.file("src/nativeInterop/cinterop/commoncrypto.def"))
-                    compilerOpts("-I${project.projectDir}/src/nativeInterop/cinterop")
-                }
-                create("appicon") {
-                    defFile(project.file("src/nativeInterop/cinterop/appicon.def"))
-                    compilerOpts("-I${project.projectDir}/src/nativeInterop/cinterop")
-                }
-                if (iosDistribution == "full") {
-                    check(nuvioEngineSliceDirectory.resolve("libCNuvioEngine.a").isFile) {
-                        "Build the local Nuvio Engine Apple XCFramework before compiling iOS Full."
-                    }
-                    create("nuvioengine") {
-                        defFile(project.file("src/nativeInterop/cinterop/nuvioengine.def"))
-                        compilerOpts("-I${nuvioEngineSliceDirectory.resolve("Headers").absolutePath}")
-                        extraOpts("-libraryPath", nuvioEngineSliceDirectory.absolutePath)
-                    }
-                }
-                configureEach {
-                    extraOpts("-Xccall-mode", "direct")
-                }
-            }
-
-            if (iosDistribution == "full") {
-                defaultSourceSet.kotlin.srcDir(fullCommonSourceDir)
-            }
-            defaultSourceSet.kotlin.srcDir(project.file(iosDistributionSourceDir))
-            defaultSourceSet.dependencies {
-                implementation(libs.ktor.client.darwin)
-                // BundledSQLiteDriver: SQLite compiled into the framework, so the match-index
-                // db needs no system libsqlite3 link in the Xcode app (NativeSQLiteDriver's
-                // -lsqlite3 doesn't reliably propagate from a static framework to the app link).
-                implementation(libs.androidx.sqlite.bundled)
-                if (iosDistribution == "full") {
-                    implementation(libs.quickjs.kt)
-                    implementation(libs.ksoup)
-                }
-            }
-        }
-
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-            freeCompilerArgs += listOf("-Xbinary=bundleId=$iosFrameworkBundleId")
-            if (iosDistribution == "full") {
-                linkerOpts(
-                    "-lc++",
-                    "-framework", "Security",
-                    "-framework", "SystemConfiguration",
-                    "-framework", "CoreFoundation",
-                )
-            }
-        }
-    }
-    
     sourceSets {
         val commonMain by getting {
             kotlin.srcDir(generatedRuntimeConfigDir)
@@ -626,10 +542,6 @@ kotlin {
             implementation(libs.konsist)
         }
     }
-}
-
-configurations.matching { it.name == "iosMainImplementation" }.configureEach {
-    project.dependencies.add(name, libs.ktor.client.darwin)
 }
 
 configurations.all {

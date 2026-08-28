@@ -107,8 +107,8 @@ To keep issues fixable, bug reports should include:
 
 - A short, specific issue title that describes the bug
 - App version (release version or commit hash)
-- Platform (Android / iOS / Desktop) + device model + OS version
-- Install method (release build / TestFlight / CI / built from source)
+- Platform (Android) + device model + OS version
+- Install method (release build / CI / built from source)
 - Steps to reproduce (exact steps)
 - Expected vs actual behavior
 - Frequency (always/sometimes/once)
@@ -124,14 +124,6 @@ Logs are optional for most issues, but they are **required** for crash / force-c
 ```sh
 adb logcat -d | tail -n 300
 ```
-
-**iOS:**
-
-Attach a crash log from Xcode Organizer or Console.app, or reproduce while connected to Xcode and copy the relevant log output.
-
-**Desktop:**
-
-Copy the relevant terminal/console output from around the time the issue occurred.
 
 ---
 
