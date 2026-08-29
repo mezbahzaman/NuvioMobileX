@@ -323,8 +323,8 @@ object HomeCatalogSettingsRepository {
             val heroSourceEnabled = if (entry.isCollection) {
                 false
             } else {
-                (stored?.heroSourceEnabled ?: false) &&
-                    enabledHeroSourceCount < HERO_SOURCE_SELECTION_LIMIT
+                stored?.heroSourceEnabled
+                    ?: (enabledHeroSourceCount < HERO_SOURCE_SELECTION_LIMIT)
             }
             if (heroSourceEnabled) {
                 enabledHeroSourceCount += 1
