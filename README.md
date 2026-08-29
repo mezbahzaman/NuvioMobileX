@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="https://github.com/tapframe/NuvioTV/blob/main/assets/brand/app_logo_wordmark.png" alt="Nuvio X" width="300" />
+  <img src="composeApp/src/commonMain/composeResources/drawable/app_logo_wordmark.png" alt="Nuvio X" width="300" />
   <br />
   <br />
 
@@ -20,23 +20,54 @@
 
 ## About
 
-Nuvio X is the current Kotlin Multiplatform rewrite of the original React Native app. It delivers a Compose UI for Android while keeping the playback-focused experience, collection tools, watch progress flows, downloads, and Stremio addon ecosystem integration that shaped the earlier app.
+Nuvio X is a media hub for Android built with Kotlin Multiplatform and Compose Multiplatform. It compiles a shared codebase into a single native Android app, delivering a Compose UI with playback, collections, watch-progress tracking, downloads, and full Stremio addon ecosystem support.
 
-Nuvio X is built on Nuvio by NuvioMedia.
-
-The mobile app is built from a single codebase in [composeApp](./composeApp), with a native Android entry point.
+Nuvio X is a feature fork of **Tuvora Mobile**, itself derived from the original **Nuvio** app. It is distributed under the GPLv3 license.
 
 ## Installation
 
 ### Android
 
-Download the latest Android build from [GitHub Releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
+Download the latest Android build from [GitHub Releases](https://github.com/mezbahzaman/TuvoraMobileX/releases/latest).
+
+## Changes from Tuvora Mobile
+
+Nuvio X is a focused evolution of Tuvora Mobile rather than a rewrite. In plain terms:
+
+**Rebranded**
+- Renamed the app from *Tuvora* to *Nuvio X*, including new branding throughout the interface.
+
+**Changed**
+- Switched to a new application logo and splash presentation.
+- Moved versioning to a single source of truth (`version.properties`).
+- Hardened the player, download, and security subsystems.
+- Added cleartext HTTP support so public IPTV panels can connect.
+- Fixed hero catalogue selections so they persist and are no longer auto-overridden.
+- Made built-in (embedded) subtitles load automatically at playback start.
+
+**Added**
+- Android-only focus: a leaner, single-platform build pipeline.
+
+**Removed**
+- Full iOS support (the app is now Android-only).
+- The MPVKit iOS library and its related code.
+- The sports / radar feature.
+- Various orphaned source sets and unused iOS catalog entries.
+
+## Credits
+
+Nuvio X builds on the work of others and we are glad to acknowledge it.
+
+- **[Nuvio](https://github.com/NuvioMedia)** — original author of the codebase this project is built on.
+- **[Paradox-Kush](https://github.com/paradox-kush)** — developer of Tuvora Mobile, the version of the app this project forked from.
+
+Nuvio X is provided under the terms of the [GPLv3 license](LICENSE).
 
 ## Development
 
 ```bash
-git clone https://github.com/NuvioMedia/NuvioMobile.git
-cd NuvioMobile
+git clone https://github.com/mezbahzaman/TuvoraMobileX.git
+cd TuvoraMobileX
 ./scripts/run-mobile.sh android
 ```
 
@@ -61,8 +92,6 @@ Nuvio X functions solely as a client-side interface for browsing metadata and pl
 
 Nuvio X is not affiliated with any third-party extensions, catalogs, sources, or content providers. It does not host, store, or distribute any media content.
 
-For comprehensive legal information, including our full disclaimer, third-party extension policy, and DMCA/Copyright information, please visit our [Legal & Disclaimer Page](https://nuvioapp.space/legal).
-
 ## Built With
 
 - Kotlin Multiplatform
@@ -70,24 +99,14 @@ For comprehensive legal information, including our full disclaimer, third-party 
 - Kotlin
 - AndroidX Media3
 
-## Star History
-
-<a href="https://www.star-history.com/#NuvioMedia/NuvioMobile&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&legend=top-left" />
- </picture>
-</a>
-
 <!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[contributors-url]: https://github.com/NuvioMedia/NuvioMobile/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[forks-url]: https://github.com/NuvioMedia/NuvioMobile/network/members
-[stars-shield]: https://img.shields.io/github/stars/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[stars-url]: https://github.com/NuvioMedia/NuvioMobile/stargazers
-[issues-shield]: https://img.shields.io/github/issues/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[issues-url]: https://github.com/NuvioMedia/NuvioMobile/issues
-[license-shield]: https://img.shields.io/github/license/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[license-url]: https://github.com/NuvioMedia/NuvioMobile/blob/main/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
+[contributors-url]: https://github.com/mezbahzaman/TuvoraMobileX/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
+[forks-url]: https://github.com/mezbahzaman/TuvoraMobileX/network/members
+[stars-shield]: https://img.shields.io/github/stars/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
+[stars-url]: https://github.com/mezbahzaman/TuvoraMobileX/stargazers
+[issues-shield]: https://img.shields.io/github/issues/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
+[issues-url]: https://github.com/mezbahzaman/TuvoraMobileX/issues
+[license-shield]: https://img.shields.io/github/license/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
+[license-url]: https://github.com/mezbahzaman/TuvoraMobileX/blob/main/LICENSE
