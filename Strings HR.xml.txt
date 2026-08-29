@@ -300,7 +300,7 @@
     <string name="collections_pinned">Prikvačeno</string>
     <string name="collections_tab_all">Sve</string>
     <string name="collections_your_collections">Vaše kolekcije</string>
-    <string name="compose_about_made_with">Izradili sa ❤️ Tapframe i prijatelji</string>
+    <string name="compose_about_made_with">Napravljeno s ❤️ od Nuvio. Rebrandirao Paradox. Malo mezbahzamanovog dodira.</string>
     <string name="compose_about_version_format">Verzija %1$s (%2$s)</string>
     <string name="compose_action_off">Isključeno</string>
     <string name="compose_action_on">Uključeno</string>

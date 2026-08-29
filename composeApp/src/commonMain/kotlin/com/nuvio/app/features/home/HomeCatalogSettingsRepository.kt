@@ -79,6 +79,7 @@ private data class StoredHomeCatalogPreference(
 @Serializable
 private data class StoredHomeCatalogSettingsPayload(
     val heroEnabled: Boolean = true,
+    val heroSelectionInitialized: Boolean = false,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
     val items: List<StoredHomeCatalogPreference> = emptyList(),
@@ -105,6 +106,7 @@ object HomeCatalogSettingsRepository {
             preferencesRef.value = value
         }
     private var heroEnabled = true
+    private var heroSelectionInitialized = false
     private var showCatalogType = true
     private var hideUnreleasedContent = false
 
@@ -112,6 +114,7 @@ object HomeCatalogSettingsRepository {
         hasLoaded = false
         preferences = emptyMap()
         heroEnabled = true
+        heroSelectionInitialized = false
         showCatalogType = true
         hideUnreleasedContent = false
         definitions = emptyList()
@@ -125,6 +128,7 @@ object HomeCatalogSettingsRepository {
         collectionDefinitions = emptyList()
         preferences = emptyMap()
         heroEnabled = true
+        heroSelectionInitialized = false
         showCatalogType = true
         hideUnreleasedContent = false
         _uiState.value = HomeCatalogSettingsUiState()
@@ -200,6 +204,7 @@ object HomeCatalogSettingsRepository {
     }
 
     fun setHeroSourceEnabled(key: String, enabled: Boolean) {
+        heroSelectionInitialized = true
         updatePreference(key, pushRemote = false) { preference ->
             if (!enabled) {
                 preference.copy(heroSourceEnabled = false)
@@ -226,6 +231,7 @@ object HomeCatalogSettingsRepository {
     fun resetToDefaults() {
         ensureLoaded()
         heroEnabled = true
+        heroSelectionInitialized = false
         showCatalogType = true
         hideUnreleasedContent = false
         preferences = emptyMap()
@@ -277,6 +283,7 @@ object HomeCatalogSettingsRepository {
 
         if (parsedPayload != null) {
             heroEnabled = parsedPayload.heroEnabled
+            heroSelectionInitialized = parsedPayload.heroSelectionInitialized
             showCatalogType = parsedPayload.showCatalogType
             hideUnreleasedContent = parsedPayload.hideUnreleasedContent
             preferences = parsedPayload.items.associateBy { it.key }
@@ -324,7 +331,8 @@ object HomeCatalogSettingsRepository {
                 false
             } else {
                 stored?.heroSourceEnabled
-                    ?: (enabledHeroSourceCount < HERO_SOURCE_SELECTION_LIMIT)
+                    ?: (!heroSelectionInitialized &&
+                        enabledHeroSourceCount < HERO_SOURCE_SELECTION_LIMIT)
             }
             if (heroSourceEnabled) {
                 enabledHeroSourceCount += 1
@@ -388,6 +396,7 @@ object HomeCatalogSettingsRepository {
             json.encodeToString(
                 StoredHomeCatalogSettingsPayload(
                     heroEnabled = heroEnabled,
+                    heroSelectionInitialized = heroSelectionInitialized,
                     showCatalogType = showCatalogType,
                     hideUnreleasedContent = hideUnreleasedContent,
                     items = preferences.values.sortedBy { it.order },

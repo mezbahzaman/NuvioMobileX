@@ -311,7 +311,7 @@ object PlayerSettingsRepository {
             normalizeLanguageCode(PlayerSettingsStorage.loadSecondaryPreferredAudioLanguage())
         preferredSubtitleLanguage =
             normalizeLanguageCode(PlayerSettingsStorage.loadPreferredSubtitleLanguage())
-                ?: SubtitleLanguageOption.NONE
+                ?: SubtitleLanguageOption.DEVICE
         secondaryPreferredSubtitleLanguage =
             normalizeLanguageCode(PlayerSettingsStorage.loadSecondaryPreferredSubtitleLanguage())
         subtitleStyle = SubtitleStyleState(

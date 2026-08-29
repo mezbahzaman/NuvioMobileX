@@ -194,7 +194,7 @@ object HomeRepository {
         val catalogHeroItems = if (snapshot.heroEnabled) {
             val heroRandom = Random((requestKey?.hashCode() ?: 0).absoluteValue + 1)
             currentDefinitions
-                .filter { definition -> preferences[definition.key]?.heroSourceEnabled != false }
+                .filter { definition -> preferences[definition.key]?.heroSourceEnabled == true }
                 .mapNotNull { definition -> cachedSections[definition.cacheKey] }
                 .map { section -> section.withReleaseFilter() }
                 .flatMap { section -> section.items }

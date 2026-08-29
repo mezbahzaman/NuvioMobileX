@@ -24,7 +24,7 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
 private const val gitHubOwner = "mezbahzaman"
-private const val gitHubRepo = "TuvoraMobileX"
+private const val gitHubRepo = "NuvioMobileX"
 private const val gitHubApiBase = "https://api.github.com"
 
 data class AppUpdate(
