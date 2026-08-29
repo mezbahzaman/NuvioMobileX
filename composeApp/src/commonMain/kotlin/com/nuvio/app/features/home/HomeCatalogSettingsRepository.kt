@@ -323,7 +323,7 @@ object HomeCatalogSettingsRepository {
             val heroSourceEnabled = if (entry.isCollection) {
                 false
             } else {
-                (stored?.heroSourceEnabled ?: true) &&
+                (stored?.heroSourceEnabled ?: false) &&
                     enabledHeroSourceCount < HERO_SOURCE_SELECTION_LIMIT
             }
             if (heroSourceEnabled) {
@@ -351,7 +351,7 @@ object HomeCatalogSettingsRepository {
                     addonName = definition.addonName,
                     customTitle = preference?.customTitle.orEmpty(),
                     enabled = preference?.enabled ?: true,
-                    heroSourceEnabled = preference?.heroSourceEnabled ?: true,
+                    heroSourceEnabled = preference?.heroSourceEnabled ?: false,
                     order = preference?.order ?: 0,
                 )
             }
@@ -504,7 +504,7 @@ object HomeCatalogSettingsRepository {
                     key = key,
                     customTitle = item.customTitle,
                     enabled = item.enabled,
-                    heroSourceEnabled = existingHeroState[key] ?: true,
+                    heroSourceEnabled = existingHeroState[key] ?: false,
                     order = item.order,
                 )
             }
@@ -563,8 +563,7 @@ object HomeCatalogSettingsRepository {
         return StoredHomeCatalogPreference(
             key = key,
             enabled = true,
-            heroSourceEnabled = isCatalog &&
-                selectedHeroSourceCount(excludingKey = key) < HERO_SOURCE_SELECTION_LIMIT,
+            heroSourceEnabled = false,
             order = _uiState.value.items.firstOrNull { it.key == key }?.order
                 ?: ((preferences.values.maxOfOrNull { it.order } ?: -1) + 1),
         )
