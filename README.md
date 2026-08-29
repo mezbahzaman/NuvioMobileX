@@ -28,7 +28,7 @@ Nuvio X is a feature fork of **Tuvora Mobile**, itself derived from the original
 
 ### Android
 
-Download the latest Android build from [GitHub Releases](https://github.com/mezbahzaman/TuvoraMobileX/releases/latest).
+Download the latest Android build from [GitHub Releases](https://github.com/mezbahzaman/NuvioMobileX/releases/latest).
 
 ## Changes from Tuvora Mobile
 
@@ -66,8 +66,8 @@ Nuvio X is provided under the terms of the [GPLv3 license](LICENSE).
 ## Development
 
 ```bash
-git clone https://github.com/mezbahzaman/TuvoraMobileX.git
-cd TuvoraMobileX
+git clone https://github.com/mezbahzaman/NuvioMobileX.git
+cd NuvioMobileX
 ./scripts/run-mobile.sh android
 ```
 
@@ -100,13 +100,13 @@ Nuvio X is not affiliated with any third-party extensions, catalogs, sources, or
 - AndroidX Media3
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
-[contributors-url]: https://github.com/mezbahzaman/TuvoraMobileX/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
-[forks-url]: https://github.com/mezbahzaman/TuvoraMobileX/network/members
-[stars-shield]: https://img.shields.io/github/stars/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
-[stars-url]: https://github.com/mezbahzaman/TuvoraMobileX/stargazers
-[issues-shield]: https://img.shields.io/github/issues/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
-[issues-url]: https://github.com/mezbahzaman/TuvoraMobileX/issues
-[license-shield]: https://img.shields.io/github/license/mezbahzaman/TuvoraMobileX.svg?style=for-the-badge
-[license-url]: https://github.com/mezbahzaman/TuvoraMobileX/blob/main/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/mezbahzaman/NuvioMobileX.svg?style=for-the-badge
+[contributors-url]: https://github.com/mezbahzaman/NuvioMobileX/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/mezbahzaman/NuvioMobileX.svg?style=for-the-badge
+[forks-url]: https://github.com/mezbahzaman/NuvioMobileX/network/members
+[stars-shield]: https://img.shields.io/github/stars/mezbahzaman/NuvioMobileX.svg?style=for-the-badge
+[stars-url]: https://github.com/mezbahzaman/NuvioMobileX/stargazers
+[issues-shield]: https://img.shields.io/github/issues/mezbahzaman/NuvioMobileX.svg?style=for-the-badge
+[issues-url]: https://github.com/mezbahzaman/NuvioMobileX/issues
+[license-shield]: https://img.shields.io/github/license/mezbahzaman/NuvioMobileX.svg?style=for-the-badge
+[license-url]: https://github.com/mezbahzaman/NuvioMobileX/blob/main/LICENSE
