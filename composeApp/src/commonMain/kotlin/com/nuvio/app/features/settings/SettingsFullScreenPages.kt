@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
+import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
