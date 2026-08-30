@@ -122,7 +122,6 @@ object HomeCatalogSettingsRepository {
         definitions = emptyList()
         collectionDefinitions = emptyList()
         _uiState.value = HomeCatalogSettingsUiState()
-        persist()
     }
 
     fun clearLocalState() {
