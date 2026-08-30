@@ -6,7 +6,6 @@ import com.nuvio.app.features.addons.AddonManifest
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.catalog.supportsPagination
-import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.home_catalog_default_title
 import org.jetbrains.compose.resources.getString
@@ -39,7 +38,7 @@ fun buildHomeCatalogRefreshSignature(addons: List<ManagedAddon>): List<String> =
         }
     }.sorted()
 
-fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDefinition> =
+suspend fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDefinition> =
     addons.enabledAddons().mapNotNull { addon ->
         val manifest = addon.manifest ?: return@mapNotNull null
         addon to manifest
@@ -49,13 +48,11 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             .map { catalog ->
                 HomeCatalogDefinition(
                     key = "${manifest.id}:${catalog.type}:${catalog.id}",
-                    defaultTitle = runBlocking {
-                        getString(
-                            Res.string.home_catalog_default_title,
-                            catalog.name,
-                            localizedMediaTypeLabel(catalog.type),
-                        )
-                    },
+                    defaultTitle = getString(
+                        Res.string.home_catalog_default_title,
+                        catalog.name,
+                        localizedMediaTypeLabel(catalog.type),
+                    ),
                     catalogName = catalog.name,
                     addonName = addon.displayTitle,
                     manifestUrl = addon.manifestUrl,

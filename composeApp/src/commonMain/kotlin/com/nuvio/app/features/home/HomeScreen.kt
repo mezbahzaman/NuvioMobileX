@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -140,9 +142,11 @@ fun HomeScreen(
     val addonsUiState by AddonRepository.uiState.collectAsStateWithLifecycle()
     val homeUiState by HomeRepository.uiState.collectAsStateWithLifecycle()
     val homeSettingsUiState by remember {
-        HomeCatalogSettingsRepository.snapshot()
         HomeCatalogSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        HomeCatalogSettingsRepository.snapshot()
+    }
     val homeListState = rememberLazyListState()
     val continueWatchingListState = rememberLazyListState()
     val upcomingListState = rememberLazyListState()
@@ -159,6 +163,7 @@ fun HomeScreen(
         TrackingSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
     var observedOfflineState by remember { mutableStateOf(false) }
+    val homeScope = rememberCoroutineScope()
 
     LaunchedEffect(scrollToTopRequests) {
         scrollToTopRequests.collect {
@@ -828,11 +833,12 @@ fun HomeScreen(
         homeUiState.heroItems.isEmpty() &&
         isResolvingHeroSources
     var firstCatalogReported by remember { mutableStateOf(false) }
+    val currentOnFirstCatalogRendered by rememberUpdatedState(onFirstCatalogRendered)
 
-    LaunchedEffect(homeUiState.sections.firstOrNull()?.key, onFirstCatalogRendered) {
+    LaunchedEffect(homeUiState.sections.firstOrNull()?.key) {
         if (firstCatalogReported || homeUiState.sections.isEmpty()) return@LaunchedEffect
         firstCatalogReported = true
-        onFirstCatalogRendered?.invoke()
+        currentOnFirstCatalogRendered?.invoke()
     }
 
     val visibleCollections = remember(collections) {
@@ -1008,7 +1014,9 @@ fun HomeScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 onRetry = {
                                     NetworkStatusRepository.requestRefresh(force = true)
-                                    HomeRepository.refresh(addonsUiState.addons.enabledAddons(), force = true)
+                                    homeScope.launch {
+                                        HomeRepository.refresh(addonsUiState.addons.enabledAddons(), force = true)
+                                    }
                                 },
                             )
                         } else {

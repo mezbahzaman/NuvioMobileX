@@ -19,7 +19,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -75,9 +74,7 @@ private val appUpdaterJson = Json {
     isLenient = true
 }
 
-private class NoChannelReleaseException : IllegalStateException(
-    runBlocking { getString(Res.string.updates_no_channel_release) },
-)
+private class NoChannelReleaseException : IllegalStateException("No channel release available")
 
 private object VersionUtils {
     fun normalize(raw: String?): String {

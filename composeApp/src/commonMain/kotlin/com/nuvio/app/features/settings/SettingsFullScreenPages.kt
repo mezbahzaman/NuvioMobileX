@@ -10,8 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
-import com.nuvio.app.features.addons.AddonRepository
-import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
@@ -30,37 +28,17 @@ import org.jetbrains.compose.resources.stringResource
 fun HomescreenSettingsScreen(
     onBack: () -> Unit,
 ) {
-    val addonsUiState by AddonRepository.uiState.collectAsStateWithLifecycle()
-    val homescreenCatalogRefreshKey = remember(addonsUiState.addons) {
-        val enabledAddons = addonsUiState.addons.enabledAddons()
-        val allManifestsSettled = enabledAddons.isNotEmpty() &&
-            enabledAddons.none { it.isRefreshing }
-        if (!allManifestsSettled) return@remember emptyList<String>()
-        enabledAddons.mapNotNull { addon ->
-            val manifest = addon.manifest ?: return@mapNotNull null
-            buildString {
-                append(manifest.transportUrl)
-                append(':')
-                append(manifest.catalogs.joinToString(separator = ",") { catalog ->
-                    "${catalog.type}:${catalog.id}:${catalog.extra.count { it.isRequired }}"
-                })
-            }
-        }
-    }
     val homescreenSettingsUiState by remember {
-        HomeCatalogSettingsRepository.snapshot()
         HomeCatalogSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        HomeCatalogSettingsRepository.snapshot()
+    }
     val collections by CollectionRepository.collections.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
         CollectionRepository.initialize()
-    }
-
-    LaunchedEffect(homescreenCatalogRefreshKey) {
-        if (homescreenCatalogRefreshKey.isEmpty()) return@LaunchedEffect
-        HomeCatalogSettingsRepository.syncCatalogs(addonsUiState.addons.enabledAddons())
     }
 
     LaunchedEffect(collections) {

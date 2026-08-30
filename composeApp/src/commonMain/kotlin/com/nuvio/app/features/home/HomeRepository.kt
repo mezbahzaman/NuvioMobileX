@@ -43,7 +43,7 @@ object HomeRepository {
     private var lastPublishedCatalogHeroEmpty: Boolean = true
     private var lastErrorMessage: String? = null
 
-    fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
+    suspend fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
         val activeAddons = addons.enabledAddons()
         val requests = buildHomeCatalogDefinitions(activeAddons)
         currentDefinitions = requests
@@ -307,6 +307,7 @@ object HomeRepository {
                     }.getOrDefault(emptyList())
                 }
             }.awaitAll()
+            if (collectionHeroRequestKey != nextRequestKey) return@launch
             val random = Random((nextRequestKey.hashCode()).absoluteValue + 7)
             cachedCollectionHeroItems = roundRobinCollectionHeroItems(sourceResults)
                 .distinctBy { item -> item.stableKey() }

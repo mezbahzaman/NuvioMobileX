@@ -4,10 +4,11 @@ import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
 import kotlinx.atomicfu.atomic
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -87,6 +88,7 @@ private data class StoredHomeCatalogSettingsPayload(
 
 object HomeCatalogSettingsRepository {
     const val HERO_SOURCE_SELECTION_LIMIT = 2
+    private val syncMutex = Mutex()
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -120,6 +122,7 @@ object HomeCatalogSettingsRepository {
         definitions = emptyList()
         collectionDefinitions = emptyList()
         _uiState.value = HomeCatalogSettingsUiState()
+        persist()
     }
 
     fun clearLocalState() {
@@ -132,15 +135,16 @@ object HomeCatalogSettingsRepository {
         showCatalogType = true
         hideUnreleasedContent = false
         _uiState.value = HomeCatalogSettingsUiState()
+        persist()
     }
 
-    fun syncCatalogs(addons: List<ManagedAddon>) {
+    suspend fun syncCatalogs(addons: List<ManagedAddon>) = syncMutex.withLock {
         ensureLoaded()
         definitions = buildHomeCatalogDefinitions(addons)
         collectionDefinitions = buildCollectionDefinitions(CollectionRepository.collections.value)
         if (definitions.isEmpty() && collectionDefinitions.isEmpty()) {
             publish()
-            return
+            return@withLock
         }
         normalizePreferences()
         enforcePinnedCollectionsAtTop()
@@ -148,7 +152,7 @@ object HomeCatalogSettingsRepository {
         persist()
     }
 
-    fun syncCollections(collections: List<Collection>) {
+    suspend fun syncCollections(collections: List<Collection>) = syncMutex.withLock {
         ensureLoaded()
         collectionDefinitions = buildCollectionDefinitions(collections)
         normalizePreferences()
@@ -573,8 +577,7 @@ object HomeCatalogSettingsRepository {
             key = key,
             enabled = true,
             heroSourceEnabled = false,
-            order = _uiState.value.items.firstOrNull { it.key == key }?.order
-                ?: ((preferences.values.maxOfOrNull { it.order } ?: -1) + 1),
+            order = (preferences.values.maxOfOrNull { it.order } ?: -1) + 1,
         )
     }
 
@@ -614,13 +617,13 @@ internal fun visibleCollectionsWithUniqueIds(collections: List<Collection>): Lis
         .filter { collection -> collection.folders.isNotEmpty() }
         .distinctBy(Collection::id)
 
-internal fun buildCollectionDefinitions(collections: List<Collection>): List<CollectionCatalogDefinition> =
+internal suspend fun buildCollectionDefinitions(collections: List<Collection>): List<CollectionCatalogDefinition> =
     visibleCollectionsWithUniqueIds(collections).map { collection ->
         CollectionCatalogDefinition(
             key = "collection_${collection.id}",
             collectionId = collection.id,
             title = collection.title,
-            subtitle = runBlocking { getString(Res.string.collections_folder_count, collection.folders.size) },
+            subtitle = getString(Res.string.collections_folder_count, collection.folders.size),
             isPinnedToTop = collection.pinToTop,
         )
     }

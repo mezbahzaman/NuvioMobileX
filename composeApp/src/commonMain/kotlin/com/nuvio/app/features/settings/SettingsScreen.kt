@@ -201,26 +201,12 @@ fun SettingsScreen(
             AddonRepository.initialize()
             AddonRepository.uiState
         }.collectAsStateWithLifecycle()
-        val homescreenCatalogRefreshKey = remember(addonsUiState.addons) {
-            val enabledAddons = addonsUiState.addons.enabledAddons()
-            val allManifestsSettled = enabledAddons.isNotEmpty() &&
-                enabledAddons.none { it.isRefreshing }
-            if (!allManifestsSettled) return@remember emptyList<String>()
-            enabledAddons.mapNotNull { addon ->
-                val manifest = addon.manifest ?: return@mapNotNull null
-                buildString {
-                    append(manifest.transportUrl)
-                    append(':')
-                    append(manifest.catalogs.joinToString(separator = ",") { catalog ->
-                        "${catalog.type}:${catalog.id}:${catalog.extra.count { it.isRequired }}"
-                    })
-                }
-            }
-        }
         val homescreenSettingsUiState by remember {
-            HomeCatalogSettingsRepository.snapshot()
             HomeCatalogSettingsRepository.uiState
         }.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) {
+            HomeCatalogSettingsRepository.snapshot()
+        }
         val collections by CollectionRepository.collections.collectAsStateWithLifecycle()
         val metaScreenSettingsUiState by remember {
             MetaScreenSettingsRepository.ensureLoaded()
@@ -241,11 +227,6 @@ fun SettingsScreen(
         val profileSettingsState by remember {
             ProfileRepository.state
         }.collectAsStateWithLifecycle()
-
-        LaunchedEffect(homescreenCatalogRefreshKey) {
-            if (homescreenCatalogRefreshKey.isEmpty()) return@LaunchedEffect
-            HomeCatalogSettingsRepository.syncCatalogs(addonsUiState.addons.enabledAddons())
-        }
 
         LaunchedEffect(Unit) {
             CollectionRepository.initialize()
